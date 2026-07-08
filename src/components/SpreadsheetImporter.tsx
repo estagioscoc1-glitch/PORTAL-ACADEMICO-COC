@@ -24,6 +24,8 @@ export const SpreadsheetImporter: React.FC = () => {
   const { importStudents, importSubjects, importConcepts, classes, courses, currentPeriod } = useApp();
   const [selectedClassId, setSelectedClassId] = useState('');
 
+  const lastPeriodRef = React.useRef(currentPeriod);
+
   // Sync selectedClassId with current active period class on mount or period change
   React.useEffect(() => {
     const [yearStr, semStr] = currentPeriod.split('/');
@@ -32,10 +34,17 @@ export const SpreadsheetImporter: React.FC = () => {
     
     // Find a class that matches the active period
     const activePeriodClass = classes.find(c => c.year === currentYear && c.semester === currentSemester);
-    if (activePeriodClass) {
-      setSelectedClassId(activePeriodClass.id);
-    } else if (classes.length > 0 && !selectedClassId) {
-      setSelectedClassId(classes[0].id);
+    const periodChanged = lastPeriodRef.current !== currentPeriod;
+    lastPeriodRef.current = currentPeriod;
+
+    const currentSelectionExists = classes.some(c => c.id === selectedClassId);
+
+    if (!currentSelectionExists || periodChanged) {
+      if (activePeriodClass) {
+        setSelectedClassId(activePeriodClass.id);
+      } else if (classes.length > 0) {
+        setSelectedClassId(classes[0].id);
+      }
     }
   }, [currentPeriod, classes, selectedClassId]);
 

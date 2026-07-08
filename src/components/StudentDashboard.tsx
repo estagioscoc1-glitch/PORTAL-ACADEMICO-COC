@@ -276,11 +276,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
               declarationConfigs?.escolaridade?.endDate || ''
             );
 
-            const isCtranspActive = isDateWithinRange(
-              simulatedDate, 
-              declarationConfigs?.ctransp?.startDate || '', 
-              declarationConfigs?.ctransp?.endDate || ''
-            );
+            const isCtranspActive = true; // Unlocked/released without date restrictions as requested
 
             const formatDateBr = (dateStr: string) => {
               if (!dateStr) return '';

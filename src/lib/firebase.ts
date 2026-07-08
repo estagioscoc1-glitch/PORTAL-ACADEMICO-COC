@@ -107,8 +107,9 @@ export async function saveStateToCloud(state: SystemStatePayload): Promise<boole
   }
   try {
     const stateDocRef = doc(db, 'academic_portal', 'state_node');
+    const cleanedState = JSON.parse(JSON.stringify(state));
     await setDoc(stateDocRef, {
-      ...state,
+      ...cleanedState,
       lastBackupTime: new Date().toISOString(),
       version: '1.0.0-cloud-sync'
     }, { merge: true });

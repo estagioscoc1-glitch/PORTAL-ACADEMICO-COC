@@ -40,6 +40,55 @@ function MainAppLayout() {
   const [simulationRole, setSimulationRole] = useState<UserRole | null>(null);
   const [simulatedStudentId, setSimulatedStudentId] = useState<string | null>(null);
 
+  const handleLogout = () => {
+    logout();
+    setSimulationRole(null);
+    setSimulatedStudentId(null);
+  };
+
+  // Auto-logout after 5 minutes of inactivity (300,000 ms)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    let timeoutId: any;
+
+    const resetTimer = () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      timeoutId = setTimeout(() => {
+        handleLogout();
+      }, 5 * 60 * 1000); // 5 minutes
+    };
+
+    // Events to detect user activity
+    const activityEvents = [
+      'mousedown',
+      'mousemove',
+      'keypress',
+      'scroll',
+      'touchstart',
+      'click'
+    ];
+
+    // Initialize timer
+    resetTimer();
+
+    // Setup event listeners
+    activityEvents.forEach(event => {
+      window.addEventListener(event, resetTimer, { passive: true });
+    });
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      activityEvents.forEach(event => {
+        window.removeEventListener(event, resetTimer);
+      });
+    };
+  }, [currentUser]);
+
   // Sync dark class on document root
   useEffect(() => {
     const root = window.document.documentElement;
@@ -86,12 +135,6 @@ function MainAppLayout() {
   if (isStudentFirstLogin) {
     return <FirstLoginPasswordChange />;
   }
-
-  const handleLogout = () => {
-    logout();
-    setSimulationRole(null);
-    setSimulatedStudentId(null);
-  };
 
   // Determine active display role
   const activeDisplayRole = currentUser.role === UserRole.ADMIN && simulationRole 

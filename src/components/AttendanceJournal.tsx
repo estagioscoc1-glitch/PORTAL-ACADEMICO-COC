@@ -637,18 +637,24 @@ export const AttendanceJournal: React.FC = () => {
               {classStudents.map((stud, idx) => {
                 const absStats = getStudentAbsences(stud.id, targetSubject.id);
                 const isOverLimit = absStats.total > maxAbsencesLimit;
+                const isTransferred = stud.classId !== targetClass.id;
 
                 return (
-                  <tr key={stud.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-all h-12">
+                  <tr key={stud.id} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-all h-12 ${isTransferred ? 'opacity-75 bg-amber-50/10 dark:bg-amber-950/5' : ''}`}>
                     {/* Sticky left columns */}
                     <td className="py-2 px-2 text-center text-slate-400 font-mono sticky left-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-750 z-10 w-[45px] min-w-[45px] max-w-[45px]">{idx + 1}</td>
                     <td className="py-2 px-2 font-mono text-slate-500 dark:text-slate-400 sticky left-[45px] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-750 z-10 w-[95px] min-w-[95px] max-w-[95px]">{stud.enrollment}</td>
                     <td className="py-2 px-3 sticky left-[140px] bg-white dark:bg-slate-900 border-r-2 border-slate-300 dark:border-slate-700 z-10 w-[200px] min-w-[200px] max-w-[200px]">
-                      <div className="flex flex-col max-w-[190px] truncate">
-                        <span className="font-bold text-slate-900 dark:text-white text-xs">
+                      <div className="flex flex-col max-w-[190px] min-w-0">
+                        <span className="font-bold text-slate-900 dark:text-white text-xs truncate" title={stud.name}>
                           {stud.name}
                         </span>
-                        {isOverLimit && (
+                        {isTransferred && (
+                          <span className="text-[8px] text-amber-600 dark:text-amber-400 font-black uppercase tracking-wider mt-0.5 leading-tight">
+                            Transferido p/ {classes.find(c => c.id === stud.classId)?.name || 'outra sala'}
+                          </span>
+                        )}
+                        {isOverLimit && !isTransferred && (
                           <span className="text-[8px] text-red-500 font-black uppercase tracking-wider mt-0.5">
                             Excedeu limite ({maxAbsencesLimit}h)
                           </span>
@@ -668,16 +674,18 @@ export const AttendanceJournal: React.FC = () => {
                             <input
                               type="text"
                               readOnly
-                              disabled={isLocked}
+                              disabled={isLocked || isTransferred}
                               value={isAbsent ? 'F' : '•'}
-                              onKeyDown={(e) => handleCellKeyDown(e, colIdx, stud.id)}
-                              onClick={() => handleCellClick(colIdx, stud.id)}
-                              className={`w-7 h-7 text-center font-mono text-xs font-black rounded-md border outline-none focus:ring-2 transition-all cursor-pointer select-none ${
-                                isAbsent
-                                  ? 'border-red-500 bg-red-50 text-red-700 dark:border-red-600 dark:bg-red-950/30 dark:text-red-400 focus:ring-red-500'
-                                  : 'border-slate-200/80 bg-white dark:bg-slate-900 text-emerald-600 dark:border-slate-750 dark:text-emerald-400 focus:ring-emerald-500'
+                              onKeyDown={(e) => !isTransferred && handleCellKeyDown(e, colIdx, stud.id)}
+                              onClick={() => !isTransferred && handleCellClick(colIdx, stud.id)}
+                              className={`w-7 h-7 text-center font-mono text-xs font-black rounded-md border outline-none focus:ring-2 transition-all select-none ${
+                                isTransferred
+                                  ? 'border-slate-150 bg-slate-50 text-slate-300 cursor-not-allowed dark:border-slate-800 dark:bg-slate-950/20 dark:text-slate-600'
+                                  : isAbsent
+                                    ? 'border-red-500 bg-red-50 text-red-700 dark:border-red-600 dark:bg-red-950/30 dark:text-red-400 focus:ring-red-500 cursor-pointer'
+                                    : 'border-slate-200/80 bg-white dark:bg-slate-900 text-emerald-600 dark:border-slate-750 dark:text-emerald-400 focus:ring-emerald-500 cursor-pointer'
                               }`}
-                              title={isAbsent ? "Falta registrada. Clique para alterar para Presença." : "Presença registrada. Clique para alterar para Falta."}
+                              title={isTransferred ? "Não editável (Transferido)" : isAbsent ? "Falta registrada. Clique para alterar para Presença." : "Presença registrada. Clique para alterar para Falta."}
                             />
                           </div>
                         </td>

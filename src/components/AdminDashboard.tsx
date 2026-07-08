@@ -48,6 +48,7 @@ export const AdminDashboard: React.FC = () => {
   const [transferClassId, setTransferClassId] = useState('');
   const [transferSearch, setTransferSearch] = useState('');
   const [transferSuccess, setTransferSuccess] = useState(false);
+  const [journalError, setJournalError] = useState<string | null>(null);
 
   // Declaration configuration states
   const [escStart, setEscStart] = useState('');
@@ -199,7 +200,18 @@ export const AdminDashboard: React.FC = () => {
     let updatedAssigned;
     if (exists) {
       updatedAssigned = currentAssigned.filter(j => !(j.classId === classId && j.subjectId === subjectId));
+      setJournalError(null);
     } else {
+      const otherTeacher = users.find(u => 
+        u.role === UserRole.TEACHER && 
+        u.id !== teacherId && 
+        u.assignedJournals?.some(j => j.classId === classId && j.subjectId === subjectId)
+      );
+      if (otherTeacher) {
+        setJournalError(`A disciplina já está atribuída ao professor ${otherTeacher.name}.`);
+        return;
+      }
+      setJournalError(null);
       updatedAssigned = [...currentAssigned, { classId, subjectId }];
     }
     
@@ -2120,13 +2132,28 @@ export const AdminDashboard: React.FC = () => {
                               type="button"
                               onClick={() => {
                                 const allJournals: { classId: string; subjectId: string }[] = [];
+                                let collisionOccurred = false;
                                 classes.forEach(cls => {
                                   const classSubs = subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module);
                                   classSubs.forEach(sub => {
-                                    allJournals.push({ classId: cls.id, subjectId: sub.id });
+                                    const otherTeacher = users.find(u => 
+                                      u.role === UserRole.TEACHER && 
+                                      u.id !== teacher.id && 
+                                      u.assignedJournals?.some(j => j.classId === cls.id && j.subjectId === sub.id)
+                                    );
+                                    if (!otherTeacher) {
+                                      allJournals.push({ classId: cls.id, subjectId: sub.id });
+                                    } else {
+                                      collisionOccurred = true;
+                                    }
                                   });
                                 });
                                 updateUser(teacher.id, { assignedJournals: allJournals });
+                                if (collisionOccurred) {
+                                  setJournalError("Algumas disciplinas não puderam ser atribuídas pois já possuem professor cadastrado.");
+                                } else {
+                                  setJournalError(null);
+                                }
                               }}
                               className="px-2 py-1 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-900 text-[10px] font-extrabold text-blue-700 dark:text-blue-300 rounded hover:bg-blue-100 transition-all cursor-pointer"
                             >
@@ -2136,6 +2163,7 @@ export const AdminDashboard: React.FC = () => {
                               type="button"
                               onClick={() => {
                                 updateUser(teacher.id, { assignedJournals: [] });
+                                setJournalError(null);
                               }}
                               className="px-2 py-1 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 text-[10px] font-extrabold text-red-700 dark:text-red-300 rounded hover:bg-red-100 transition-all cursor-pointer"
                             >
@@ -2143,6 +2171,19 @@ export const AdminDashboard: React.FC = () => {
                             </button>
                           </div>
                         </div>
+
+                        {journalError && (
+                          <div className="p-2.5 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 text-red-700 dark:text-red-400 text-xs rounded-xl flex items-center justify-between font-bold">
+                            <span>⚠️ {journalError}</span>
+                            <button 
+                              type="button" 
+                              onClick={() => setJournalError(null)} 
+                              className="text-[10px] uppercase font-black hover:underline"
+                            >
+                              Fechar
+                            </button>
+                          </div>
+                        )}
 
                         {/* Filter by Course and Period */}
                         <div className="space-y-2">
@@ -2206,9 +2247,28 @@ export const AdminDashboard: React.FC = () => {
                                         let updated;
                                         if (isAllAssignedOfThisClass) {
                                           updated = otherAssigned;
+                                          setJournalError(null);
                                         } else {
-                                          const added = classSubs.map(s => ({ classId: cls.id, subjectId: s.id }));
+                                          let collisionOccurred = false;
+                                          const availableSubs = classSubs.filter(sub => {
+                                            const otherTeacher = users.find(u => 
+                                              u.role === UserRole.TEACHER && 
+                                              u.id !== teacher.id && 
+                                              u.assignedJournals?.some(j => j.classId === cls.id && j.subjectId === sub.id)
+                                            );
+                                            if (otherTeacher) {
+                                              collisionOccurred = true;
+                                              return false;
+                                            }
+                                            return true;
+                                          });
+                                          const added = availableSubs.map(s => ({ classId: cls.id, subjectId: s.id }));
                                           updated = [...otherAssigned, ...added];
+                                          if (collisionOccurred) {
+                                            setJournalError("Algumas disciplinas já possuem professor e não puderam ser adicionadas.");
+                                          } else {
+                                            setJournalError(null);
+                                          }
                                         }
                                         updateUser(teacher.id, { assignedJournals: updated });
                                       }}
@@ -2221,22 +2281,37 @@ export const AdminDashboard: React.FC = () => {
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 border-t border-slate-50 dark:border-slate-800">
                                     {classSubs.map(sub => {
                                       const isChecked = assignedList.some(j => j.classId === cls.id && j.subjectId === sub.id);
+                                      const otherTeacher = users.find(u => 
+                                        u.role === UserRole.TEACHER && 
+                                        u.id !== teacher.id && 
+                                        u.assignedJournals?.some(j => j.classId === cls.id && j.subjectId === sub.id)
+                                      );
                                       return (
                                         <label
                                           key={sub.id}
-                                          className={`flex items-start gap-2 p-1.5 rounded-lg border text-[10px] font-medium transition-all cursor-pointer ${
-                                            isChecked 
-                                              ? 'bg-blue-50/40 dark:bg-blue-950/10 border-blue-100 dark:border-blue-900/40 text-blue-850 dark:text-blue-300' 
-                                              : 'bg-slate-50/30 dark:bg-slate-850/10 border-slate-100 dark:border-slate-800 text-slate-500 hover:bg-slate-50'
+                                          className={`flex items-start gap-2 p-1.5 rounded-lg border text-[10px] font-medium transition-all ${
+                                            otherTeacher
+                                              ? 'bg-slate-100/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-850 text-slate-400 dark:text-slate-600 cursor-not-allowed opacity-60'
+                                              : isChecked 
+                                                ? 'bg-blue-50/40 dark:bg-blue-950/10 border-blue-100 dark:border-blue-900/40 text-blue-850 dark:text-blue-300 cursor-pointer' 
+                                                : 'bg-slate-50/30 dark:bg-slate-850/10 border-slate-100 dark:border-slate-800 text-slate-500 hover:bg-slate-50 cursor-pointer'
                                           }`}
                                         >
                                           <input
                                             type="checkbox"
                                             checked={isChecked}
+                                            disabled={!!otherTeacher}
                                             onChange={() => toggleJournalAccess(teacher.id, cls.id, sub.id)}
-                                            className="mt-0.5 rounded text-blue-600 focus:ring-blue-500 h-3 w-3"
+                                            className="mt-0.5 rounded text-blue-600 focus:ring-blue-500 h-3 w-3 disabled:opacity-50"
                                           />
-                                          <span className="leading-tight truncate" title={sub.name}>{sub.name}</span>
+                                          <div className="flex flex-col min-w-0">
+                                            <span className="leading-tight truncate" title={sub.name}>{sub.name}</span>
+                                            {otherTeacher && (
+                                              <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 truncate">
+                                                Prof. {otherTeacher.name}
+                                              </span>
+                                            )}
+                                          </div>
                                         </label>
                                       );
                                     })}

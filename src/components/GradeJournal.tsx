@@ -314,6 +314,8 @@ export const GradeJournal: React.FC = () => {
                 const grade = journalGrades.find(g => g.studentId === stud.id);
                 if (!grade) return null;
 
+                const isTransferred = stud.classId !== targetClass.id;
+
                 const s1Part = getS1Evaluations(grade);
                 const s2Part = getS2Evaluations(grade);
                 const absStats = getStudentAbsences(stud.id, targetSubject.id);
@@ -328,7 +330,7 @@ export const GradeJournal: React.FC = () => {
                       hoveredRow === stud.id 
                         ? 'bg-slate-50/80 dark:bg-slate-800/40' 
                         : 'odd:bg-white dark:odd:bg-slate-900 even:bg-slate-50/20 dark:even:bg-slate-800/10'
-                    }`}
+                    } ${isTransferred ? 'opacity-75 bg-amber-50/10 dark:bg-amber-950/5' : ''}`}
                   >
                     {/* Index */}
                     <td className={`py-2.5 px-2 text-center text-slate-400 font-mono sticky left-0 border-r border-slate-200 dark:border-slate-750 z-10 w-[45px] min-w-[45px] max-w-[45px] transition-colors ${
@@ -356,8 +358,13 @@ export const GradeJournal: React.FC = () => {
                           ? 'bg-slate-50/70 dark:bg-slate-800/30' 
                           : 'bg-white dark:bg-slate-900'
                     }`}>
-                      <div className="truncate max-w-[190px]">
-                        {stud.name}
+                      <div className="flex flex-col min-w-0 max-w-[190px]">
+                        <span className="truncate" title={stud.name}>{stud.name}</span>
+                        {isTransferred && (
+                          <span className="text-[8px] text-amber-600 dark:text-amber-400 font-black uppercase tracking-wider mt-0.5 leading-tight">
+                            Transferido p/ {classes.find(c => c.id === stud.classId)?.name || 'outra sala'}
+                          </span>
+                        )}
                       </div>
                     </td>
 
@@ -367,7 +374,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS1Locked}
+                        disabled={isLocked || isS1Locked || isTransferred}
                         value={grade.av1 !== null ? grade.av1 : s1Part.av1}
                         onChange={(e) => handleValueChange(grade.id, 'av1', e.target.value)}
                         onFocus={(e) => e.target.select()}
@@ -382,7 +389,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS1Locked}
+                        disabled={isLocked || isS1Locked || isTransferred}
                         value={grade.av2 !== null ? grade.av2 : s1Part.av2}
                         onChange={(e) => handleValueChange(grade.id, 'av2', e.target.value)}
                         onFocus={(e) => e.target.select()}
@@ -397,7 +404,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS1Locked}
+                        disabled={isLocked || isS1Locked || isTransferred}
                         value={grade.av3 !== null ? grade.av3 : s1Part.av3}
                         onChange={(e) => handleValueChange(grade.id, 'av3', e.target.value)}
                         onFocus={(e) => e.target.select()}
@@ -412,7 +419,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS1Locked}
+                        disabled={isLocked || isS1Locked || isTransferred}
                         placeholder="-"
                         value={grade.recS1 !== null ? grade.recS1 : ''}
                         onChange={(e) => handleValueChange(grade.id, 'recS1', e.target.value)}
@@ -433,7 +440,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS2Locked}
+                        disabled={isLocked || isS2Locked || isTransferred}
                         value={grade.av4 !== null ? grade.av4 : s2Part.av4}
                         onChange={(e) => handleValueChange(grade.id, 'av4', e.target.value)}
                         onFocus={(e) => e.target.select()}
@@ -448,7 +455,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS2Locked}
+                        disabled={isLocked || isS2Locked || isTransferred}
                         value={grade.av5 !== null ? grade.av5 : s2Part.av5}
                         onChange={(e) => handleValueChange(grade.id, 'av5', e.target.value)}
                         onFocus={(e) => e.target.select()}
@@ -463,7 +470,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS2Locked}
+                        disabled={isLocked || isS2Locked || isTransferred}
                         value={grade.av6 !== null ? grade.av6 : s2Part.av6}
                         onChange={(e) => handleValueChange(grade.id, 'av6', e.target.value)}
                         onFocus={(e) => e.target.select()}
@@ -478,7 +485,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS2Locked}
+                        disabled={isLocked || isS2Locked || isTransferred}
                         placeholder="-"
                         value={grade.recS2 !== null ? grade.recS2 : ''}
                         onChange={(e) => handleValueChange(grade.id, 'recS2', e.target.value)}
@@ -499,7 +506,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked}
+                        disabled={isLocked || isTransferred}
                         placeholder="-"
                         value={grade.extra !== null ? grade.extra : ''}
                         onChange={(e) => handleValueChange(grade.id, 'extra', e.target.value)}
@@ -515,7 +522,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked}
+                        disabled={isLocked || isTransferred}
                         placeholder="-"
                         value={grade.conselho !== null ? grade.conselho : ''}
                         onChange={(e) => handleValueChange(grade.id, 'conselho', e.target.value)}
@@ -531,7 +538,7 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked}
+                        disabled={isLocked || isTransferred}
                         placeholder="-"
                         value={grade.afc !== null ? grade.afc : ''}
                         onChange={(e) => handleValueChange(grade.id, 'afc', e.target.value)}

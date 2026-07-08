@@ -1482,13 +1482,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    // Remove old grade records for this student and old class, and add new ones
+    // Keep old grade records for this student and old class, and add new ones (prevent duplicates)
     setGrades(prev => {
-      const keptGrades = prev.filter(g => !(g.studentId === studentId && g.classId === oldClassId));
-      return [...keptGrades, ...targetGrades];
+      const targetGradesFiltered = targetGrades.filter(tg => !prev.some(eg => eg.studentId === studentId && eg.classId === targetClassId && eg.subjectId === tg.subjectId));
+      return [...prev, ...targetGradesFiltered];
     });
 
-    // Update direct absences for matching subjects
+    // Copy direct absences for matching subjects (keeping old ones intact for history)
     setDirectAbsences(prev => {
       const updated = { ...prev };
       newSubjects.forEach(sub => {
@@ -1496,7 +1496,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const newKey = `${studentId}_${sub.id}_${targetClassId}`;
         if (prev[oldKey] !== undefined) {
           updated[newKey] = prev[oldKey];
-          delete updated[oldKey];
+          // Do NOT delete the oldKey so the old class keeps the attendance history
         }
       });
       return updated;
