@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Allow access to the specific state node document for the academic portal
+    match /academic_portal/{documentId} {
+      allow read, write: if documentId == 'state_node';
+    }
+  }
+}

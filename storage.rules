@@ -1,0 +1,13 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Permit public read and write access to the backups/ directory
+    match /backups/{allPaths=**} {
+      allow read, write: if true;
+    }
+    // Permit public read and write access to the simulated/ directory (used for uploads)
+    match /simulated/{allPaths=**} {
+      allow read, write: if true;
+    }
+  }
+}

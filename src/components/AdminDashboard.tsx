@@ -1,0 +1,3930 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState } from 'react';
+import { useApp, getRequiredDocsForStudent } from '../context/AppContext';
+import { UserRole, Shift, CalendarEventType } from '../types';
+import { 
+  Users, UserCheck, GraduationCap, School, BookOpen, FileCheck, CheckCircle2, 
+  XCircle, Inbox, Send, Calendar, FolderPlus, BellRing, Settings, UserPlus, 
+  Search, Printer, AlertTriangle, ChevronRight, HelpCircle,
+  Database, Shield, ShieldCheck, UploadCloud, Lock, Unlock, Server, RefreshCw, Download, Upload, Key,
+  Trash2, History, Edit2, Filter, ExternalLink, Minimize2, Maximize2, X, Minus, FileText,
+  Paperclip, Mic, Square, Play, Pause, Image as ImageIcon
+} from 'lucide-react';
+import { SpreadsheetImporter } from './SpreadsheetImporter';
+import { PrintModal } from './PrintModal';
+import { GradeJournal } from './GradeJournal';
+import { AttendanceJournal } from './AttendanceJournal';
+import { motion } from 'motion/react';
+
+export const AdminDashboard: React.FC = () => {
+  const { 
+    users, courses, classes, subjects, grades, attendance, calendarEvents, messages,
+    sendMessage, addClass, updateClass, deleteClass, addSubject, addUser, updateUser, deleteUser, toggleJournalStatus,
+    getStudentAbsences, importStudents,
+    securityLogs, cloudBackupStatus, lastCloudBackupTime, addSecurityLog,
+    triggerLocalBackup, triggerCloudBackup, restoreFromBackup, restoreFromCloud,
+    failedAttemptsMap, resetFailedAttempts,
+    currentPeriod, periods, setCurrentPeriod, addPeriod,
+    wipeAllData, loadDemoData,
+    autoLockEnabled, setAutoLockEnabled, simulatedDate, setSimulatedDate, updateCalendarEventDate,
+    activeClassId, activeSubjectId, setActiveClassId, setActiveSubjectId,
+    backupSchedule, updateBackupSchedule,
+    storageBackups, isLoadingStorageBackups, fetchStorageBackups,
+    triggerStorageBackup, deleteStorageBackup,
+    declarationConfigs, studentDocuments,
+    updateDeclarationConfig, updateStudentDocumentStatus, transferStudent
+  } = useApp();
+
+  const [activeTab, setActiveTab] = useState<'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins'>('visu');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [printDoc, setPrintDoc] = useState<any | null>(null);
+
+  // Transfer Student states
+  const [transferStudentId, setTransferStudentId] = useState('');
+  const [transferClassId, setTransferClassId] = useState('');
+  const [transferSearch, setTransferSearch] = useState('');
+  const [transferSuccess, setTransferSuccess] = useState(false);
+
+  // Declaration configuration states
+  const [escStart, setEscStart] = useState('');
+  const [escEnd, setEscEnd] = useState('');
+  const [ctrStart, setCtrStart] = useState('');
+  const [ctrEnd, setCtrEnd] = useState('');
+  const [configSuccess, setConfigSuccess] = useState(false);
+
+  // Pending Documents states
+  const [selectedDocStudentId, setSelectedDocStudentId] = useState<string | null>(null);
+  const [docSearchQuery, setDocSearchQuery] = useState('');
+
+  React.useEffect(() => {
+    if (declarationConfigs) {
+      setEscStart(declarationConfigs.escolaridade.startDate);
+      setEscEnd(declarationConfigs.escolaridade.endDate);
+      setCtrStart(declarationConfigs.ctransp.startDate);
+      setCtrEnd(declarationConfigs.ctransp.endDate);
+    }
+  }, [declarationConfigs]);
+
+  // Boletim Completo state variables
+  const [boletimSearch, setBoletimSearch] = useState('');
+  const [selectedBoletimClassId, setSelectedBoletimClassId] = useState('');
+  const [selectedBoletimStudentId, setSelectedBoletimStudentId] = useState('');
+
+  // Admin Direct Journals Launching / Printing Center state
+  const [selectedAdminClassId, setSelectedAdminClassId] = useState<string>('');
+  const [gradeWindowState, setGradeWindowState] = useState<'closed' | 'open' | 'minimized'>('closed');
+  const [isGradeWindowMaximized, setIsGradeWindowMaximized] = useState<boolean>(false);
+  const [attendanceWindowState, setAttendanceWindowState] = useState<'closed' | 'open' | 'minimized'>('closed');
+  const [isAttendanceWindowMaximized, setIsAttendanceWindowMaximized] = useState<boolean>(false);
+
+  // Parse active period
+  const [yearStr, semStr] = currentPeriod.split('/');
+  const currentYear = parseInt(yearStr) || 2026;
+  const currentSemester = parseInt(semStr) || 1;
+
+  // Active period entities
+  const activePeriodClasses = classes.filter(c => c.year === currentYear && c.semester === currentSemester);
+  const activePeriodClassIds = activePeriodClasses.map(c => c.id);
+
+  const activePeriodGrades = grades.filter(g => activePeriodClassIds.includes(g.classId));
+  const activePeriodAttendance = attendance.filter(s => activePeriodClassIds.includes(s.classId));
+
+  const activePeriodStudentIds = Array.from(new Set(activePeriodGrades.map(g => g.studentId)));
+  const activePeriodStudents = users.filter(u => 
+    u.role === UserRole.STUDENT && 
+    (activePeriodClassIds.includes(u.classId || '') || activePeriodStudentIds.includes(u.id))
+  );
+
+  // New class state
+  const [className, setClassName] = useState('');
+  const [classCode, setClassCode] = useState('');
+  const [classCourse, setClassCourse] = useState(courses[0]?.id || '');
+  const [classShift, setClassShift] = useState<Shift>(Shift.MATUTINO);
+  const [classModule, setClassModule] = useState(1);
+
+  // New subject state
+  const [subName, setSubName] = useState('');
+  const [subCourse, setSubCourse] = useState(courses[0]?.id || '');
+  const [subModule, setSubModule] = useState(1);
+  const [subWorkload, setSubWorkload] = useState(40);
+
+  // New user state (Professor or Administrador/Administração)
+  const [teachName, setTeachName] = useState('');
+  const [teachEmail, setTeachEmail] = useState('');
+  const [teachCpf, setTeachCpf] = useState('');
+  const [teachRole, setTeachRole] = useState<UserRole>(UserRole.TEACHER);
+  const [userPassword, setUserPassword] = useState('');
+
+  // Individual student enrollment state
+  const [selectedClassIdForStudents, setSelectedClassIdForStudents] = useState(classes[0]?.id || '');
+  const [singleStudentEnrollment, setSingleStudentEnrollment] = useState('');
+  const [singleStudentName, setSingleStudentName] = useState('');
+
+  // Messaging state
+  const [messageRecipient, setMessageRecipient] = useState('ALL_TEACHERS');
+  const [messageContent, setMessageContent] = useState('');
+  const [messageSuccess, setMessageSuccess] = useState('');
+  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
+  const [attachmentType, setAttachmentType] = useState<'audio' | 'pdf' | 'image' | null>(null);
+  const [attachmentName, setAttachmentName] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const recordingTimerRef = React.useRef<any>(null);
+  const mediaRecorderRef = React.useRef<any>(null);
+  const audioChunksRef = React.useRef<Blob[]>([]);
+
+  // Drag active and ref for secure backup importer
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [secStatusMsg, setSecStatusMsg] = useState<{ success: boolean; text: string } | null>(null);
+
+  // State for teacher access control
+  const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
+  const [confirmDeleteTeacherId, setConfirmDeleteTeacherId] = useState<string | null>(null);
+  const [confirmDeleteClassId, setConfirmDeleteClassId] = useState<string | null>(null);
+  const [classSearchQuery, setClassSearchQuery] = useState('');
+  const [selectedCourseIdFilter, setSelectedCourseIdFilter] = useState<string>(courses[0]?.id || 'ENF');
+  const [filterJournalsByPeriod, setFilterJournalsByPeriod] = useState<boolean>(true);
+
+  // Class editing state
+  const [editingClassId, setEditingClassId] = useState<string | null>(null);
+  const [editClassName, setEditClassName] = useState('');
+  const [editClassCode, setEditClassCode] = useState('');
+  const [editClassShift, setEditClassShift] = useState<Shift>(Shift.MATUTINO);
+  const [editClassModule, setEditClassModule] = useState(1);
+  const [editClassYear, setEditClassYear] = useState(2026);
+  const [editClassSemester, setEditClassSemester] = useState(1);
+
+  // User editing state
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editUserName, setEditUserName] = useState('');
+  const [editUserUsername, setEditUserUsername] = useState('');
+  const [editUserEmail, setEditUserEmail] = useState('');
+  const [editUserPassword, setEditUserPassword] = useState('');
+  const [editUserRole, setEditUserRole] = useState<UserRole>(UserRole.STUDENT);
+  const [editUserEnrollment, setEditUserEnrollment] = useState('');
+  const [editUserCpf, setEditUserCpf] = useState('');
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState<'ALL' | UserRole>('ALL');
+  const [confirmDeleteUserId, setConfirmDeleteUserId] = useState<string | null>(null);
+
+  // Sync selected class when active period changes or class list changes
+  React.useEffect(() => {
+    if (activePeriodClasses.length > 0) {
+      const activeIds = activePeriodClasses.map(c => c.id);
+      
+      if (!selectedAdminClassId || !activeIds.includes(selectedAdminClassId)) {
+        setSelectedAdminClassId(activePeriodClasses[0].id);
+      }
+      if (!selectedBoletimClassId || !activeIds.includes(selectedBoletimClassId)) {
+        setSelectedBoletimClassId(activePeriodClasses[0].id);
+      }
+      if (!selectedClassIdForStudents || !activeIds.includes(selectedClassIdForStudents)) {
+        setSelectedClassIdForStudents(activePeriodClasses[0].id);
+      }
+    }
+  }, [activePeriodClasses, selectedAdminClassId, selectedBoletimClassId, selectedClassIdForStudents]);
+
+  const toggleJournalAccess = (teacherId: string, classId: string, subjectId: string) => {
+    const teacher = users.find(u => u.id === teacherId);
+    if (!teacher) return;
+    
+    const currentAssigned = teacher.assignedJournals || [];
+    const exists = currentAssigned.some(j => j.classId === classId && j.subjectId === subjectId);
+    
+    let updatedAssigned;
+    if (exists) {
+      updatedAssigned = currentAssigned.filter(j => !(j.classId === classId && j.subjectId === subjectId));
+    } else {
+      updatedAssigned = [...currentAssigned, { classId, subjectId }];
+    }
+    
+    updateUser(teacherId, { assignedJournals: updatedAssigned });
+  };
+
+  // Compute stats based on active period
+  const activeStudents = activePeriodStudents;
+  const activeTeachers = users.filter(u => u.role === UserRole.TEACHER);
+  const journalsTotal = activePeriodClasses.reduce((total, cls) => {
+    const classSubs = subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module);
+    return total + classSubs.length;
+  }, 0);
+
+  const totalAbsencesCount = activePeriodAttendance.reduce((acc, sess) => {
+    return acc + Object.values(sess.records).filter(v => v === 'F').length * sess.lessonsCount;
+  }, 0);
+
+  // Calculated approvals vs fails
+  let approvedCount = 0;
+  let failedCount = 0;
+  let pendingGrades = 0;
+
+  activePeriodGrades.forEach(g => {
+    if (g.result === 'APTO') approvedCount++;
+    else if (g.result === 'NÃO APTO' || g.result === 'F. NOTA') failedCount++;
+    else pendingGrades++;
+  });
+
+  const overallApprovalRate = activeStudents.length > 0 
+    ? (approvedCount / (approvedCount + failedCount || 1)) * 100 
+    : 100;
+
+  const handleCreateClass = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!className) return;
+
+    const finalCode = classCode.trim() 
+      ? classCode.trim().toUpperCase() 
+      : `${classCourse}-M${classModule}-${classShift.substring(0, 3).toUpperCase()}`;
+
+    addClass({
+      id: `class_${Date.now()}`,
+      name: className.toUpperCase(),
+      code: finalCode,
+      courseId: classCourse,
+      shift: classShift,
+      module: classModule,
+      year: currentYear,
+      semester: currentSemester,
+      closedS1: false,
+      closedS2: false,
+      closedDefinitive: false
+    });
+
+    setClassName('');
+    setClassCode('');
+    alert(`Nova Turma cadastrada com sucesso para o período ${currentPeriod}! Diários gerados automaticamente.`);
+  };
+
+  const handleCreateSubject = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subName) return;
+
+    addSubject({
+      id: `sub_${Date.now()}`,
+      name: subName.toUpperCase(),
+      courseId: subCourse,
+      module: subModule,
+      workload: subWorkload
+    });
+
+    setSubName('');
+    alert('Nova Disciplina acadêmica criada e incorporada aos diários das turmas.');
+  };
+
+  const handleCreateUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!teachName || !teachEmail || !userPassword) {
+      alert('Por favor, preencha todos os campos obrigatórios, incluindo a Senha de Acesso.');
+      return;
+    }
+
+    const firstWord = teachName.toLowerCase().trim().split(' ')[0].normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const generatedUsername = teachRole === UserRole.ADMIN 
+      ? `admin_${firstWord}_${Math.floor(10 + Math.random() * 90)}`
+      : `prof_${firstWord}`;
+
+    const uniqueId = teachRole === UserRole.ADMIN ? `admin_${Date.now()}` : `prof_${Date.now()}`;
+    const enrollment = teachRole === UserRole.TEACHER 
+      ? (1000 + activeTeachers.length + 1).toString() 
+      : undefined;
+
+    addUser({
+      id: uniqueId,
+      name: teachName,
+      username: generatedUsername,
+      email: teachEmail,
+      role: teachRole,
+      cpf: undefined,
+      enrollment: enrollment,
+      password: userPassword,
+      active: true
+    });
+
+    setTeachName('');
+    setTeachEmail('');
+    setTeachCpf('');
+    setUserPassword('');
+    setTeachRole(UserRole.TEACHER);
+    
+    alert(
+      teachRole === UserRole.ADMIN
+        ? `Administrador(a) (Administração) cadastrado com sucesso!\nUsuário de acesso: ${generatedUsername}\nSenha de acesso: ${userPassword}`
+        : `Professor(a) cadastrado com sucesso!\nUsuário de acesso: ${generatedUsername}\nMatrícula: ${enrollment}\nSenha: ${userPassword}`
+    );
+  };
+
+  const handleEnrollSingleStudent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!singleStudentName.trim() || !singleStudentEnrollment.trim() || !selectedClassIdForStudents) {
+      alert('Por favor, preencha todos os campos obrigatórios.');
+      return;
+    }
+
+    const enrollment = singleStudentEnrollment.trim();
+
+    // Check if user with this enrollment already exists
+    const exists = users.some(u => u.enrollment === enrollment);
+    if (exists) {
+      alert(`Erro: Já existe um usuário cadastrado com a matrícula ${enrollment}.`);
+      return;
+    }
+
+    const newStudent = {
+      name: singleStudentName.trim().toUpperCase(),
+      enrollment,
+      email: `${enrollment}@aluno.oc.com`
+    };
+
+    importStudents([newStudent], selectedClassIdForStudents);
+
+    setSingleStudentEnrollment('');
+    setSingleStudentName('');
+
+    const targetClass = classes.find(c => c.id === selectedClassIdForStudents);
+    const classNameStr = targetClass ? targetClass.name : 'Turma';
+
+    alert(`Sucesso! O(A) aluno(a) ${newStudent.name} (Matrícula: ${enrollment}) foi matriculado(a) em todos os diários da turma ${classNameStr}.`);
+  };
+
+  const startRecording = async () => {
+    if (!navigator.mediaDevices || !window.MediaRecorder) {
+      alert("Seu navegador não suporta gravação de áudio nativa.");
+      return;
+    }
+    try {
+      audioChunksRef.current = [];
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setAttachmentUrl(reader.result as string);
+          setAttachmentType('audio');
+          setAttachmentName(`Áudio Gravado - Coordenação (${new Date().toLocaleDateString('pt-BR')})`);
+        };
+        reader.readAsDataURL(audioBlob);
+        
+        // Stop all tracks to release mic icon
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingDuration(0);
+      
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error("Erro ao acessar microfone:", err);
+      alert("Não foi possível acessar o microfone. Verifique as permissões do seu navegador.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+    }
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.onstop = () => {
+        if (mediaRecorderRef.current) {
+          const stream = mediaRecorderRef.current.stream;
+          stream.getTracks().forEach(track => track.stop());
+        }
+      };
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+      }
+      setRecordingDuration(0);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const fileTypeLower = file.type.toLowerCase();
+    const fileNameLower = file.name.toLowerCase();
+    
+    let detectedType: 'audio' | 'pdf' | 'image' | null = null;
+    
+    if (fileTypeLower.includes('pdf') || fileNameLower.endsWith('.pdf')) {
+      detectedType = 'pdf';
+    } else if (fileTypeLower.includes('image') || fileNameLower.endsWith('.png') || fileNameLower.endsWith('.jpg') || fileNameLower.endsWith('.jpeg')) {
+      detectedType = 'image';
+    } else if (fileTypeLower.includes('audio') || fileNameLower.endsWith('.mp3') || fileNameLower.endsWith('.wav') || fileNameLower.endsWith('.m4a') || fileNameLower.endsWith('.ogg')) {
+      detectedType = 'audio';
+    }
+
+    if (!detectedType) {
+      alert("Por favor, selecione apenas arquivos do tipo PDF, Imagem (JPG, PNG) ou Áudio.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("O arquivo excede o limite de 5MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setAttachmentUrl(reader.result as string);
+      setAttachmentType(detectedType);
+      setAttachmentName(file.name);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const formatDuration = (sec: number) => {
+    const mins = Math.floor(sec / 60);
+    const secs = sec % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!messageContent.trim() && !attachmentUrl) return;
+
+    sendMessage(
+      'Administração Pedagógica', 
+      UserRole.ADMIN, 
+      messageRecipient, 
+      messageContent.trim(),
+      attachmentUrl || undefined,
+      attachmentType || undefined,
+      attachmentName || undefined
+    );
+    setMessageContent('');
+    setAttachmentUrl(null);
+    setAttachmentType(null);
+    setAttachmentName(null);
+    setMessageSuccess('Mensagem transmitida com sucesso para o canal selecionado!');
+    setTimeout(() => setMessageSuccess(''), 3000);
+  };
+
+  // Filter student directory search
+  const filteredStudents = activeStudents.filter(s => {
+    return s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.enrollment?.includes(searchQuery);
+  });
+
+  // Drag and drop events for Backup JSON Importer
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileRestore(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileRestoreChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handleFileRestore(e.target.files[0]);
+    }
+  };
+
+  const handleFileRestore = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        const res = restoreFromBackup(event.target.result as string);
+        setSecStatusMsg({ success: res.success, text: res.message });
+        setTimeout(() => setSecStatusMsg(null), 8000);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const [restoringCloud, setRestoringCloud] = useState(false);
+  const handleCloudRestoreTrigger = async () => {
+    setRestoringCloud(true);
+    setSecStatusMsg({ success: true, text: 'Conectando ao banco de dados Firestore para restaurar estado...' });
+    const res = await restoreFromCloud();
+    setRestoringCloud(false);
+    setSecStatusMsg({ success: res.success, text: res.message });
+    setTimeout(() => setSecStatusMsg(null), 8000);
+  };
+
+  const [syncingCloud, setSyncingCloud] = useState(false);
+  const handleCloudSyncTrigger = async () => {
+    setSyncingCloud(true);
+    const success = await triggerCloudBackup();
+    setSyncingCloud(false);
+    if (success) {
+      setSecStatusMsg({ success: true, text: 'Backup em nuvem sincronizado com sucesso no Firestore.' });
+    } else {
+      setSecStatusMsg({ success: false, text: 'Erro ao sincronizar backup com a nuvem Firestore.' });
+    }
+    setTimeout(() => setSecStatusMsg(null), 5000);
+  };
+
+  // Firebase Storage Backup & Export center local states
+  const [exportingStorage, setExportingStorage] = useState<boolean>(false);
+  const [refreshingStorageList, setRefreshingStorageList] = useState<boolean>(false);
+  const [storageSuccessMsg, setStorageSuccessMsg] = useState<string>('');
+
+  return (
+    <div id="admin-dashboard-container" className="space-y-6">
+      
+      {/* Administrador Sandbox Control Center */}
+      <div className="bg-gradient-to-r from-blue-50/70 to-indigo-50/70 dark:from-slate-900/60 dark:to-slate-900/40 border border-blue-100/70 dark:border-slate-800 p-5 rounded-3xl flex flex-col md:flex-row md:items-center md:justify-between gap-5 shadow-sm select-none">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+            <Calendar className="h-4.5 w-4.5" />
+            <h4 className="font-extrabold text-xs uppercase tracking-wider">Período Letivo Ativo</h4>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={currentPeriod}
+              onChange={(e) => setCurrentPeriod(e.target.value)}
+              className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-extrabold text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none"
+            >
+              {periods.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => {
+                const name = prompt('Digite o novo período (Exemplo: 2026/2):');
+                if (name && /^\d{4}\/\d$/.test(name.trim())) {
+                  addPeriod(name.trim());
+                  alert(`Período ${name.trim()} criado com sucesso!`);
+                } else if (name) {
+                  alert('Formato inválido. Use AAAA/S (ex: 2026/2).');
+                }
+              }}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all"
+            >
+              + Novo Período
+            </button>
+          </div>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+            Diários, frequências e matrículas isolados para o período <strong className="text-blue-700 dark:text-blue-400">{currentPeriod}</strong>.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
+            <Database className="h-4.5 w-4.5" />
+            <h4 className="font-extrabold text-xs uppercase tracking-wider">Controle do Banco de Dados</h4>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => {
+                if (confirm('ATENÇÃO: Isso irá apagar completamente todos os alunos, professores, diários, frequências e notas do sistema. Deixando-o totalmente limpo para uso real. Deseja prosseguir?')) {
+                  wipeAllData();
+                  alert('Sistema limpo com sucesso! Todos os dados de teste foram apagados.');
+                }
+              }}
+              className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 dark:bg-red-950 dark:hover:bg-red-900 text-white dark:text-red-200 font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 border border-transparent dark:border-red-900/30"
+            >
+              <XCircle className="h-3.5 w-3.5" /> Limpar Tudo (Produção)
+            </button>
+            <button
+              onClick={() => {
+                loadDemoData();
+                alert('Massa de dados de teste carregada com sucesso! Você já pode testar o boletim dos alunos ou os lançamentos dos professores.');
+              }}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-950 dark:hover:bg-emerald-900 text-white dark:text-emerald-200 font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 border border-transparent dark:border-emerald-900/30"
+            >
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" style={{ animationDuration: '3s' }} /> Carregar Demonstração
+            </button>
+          </div>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+            Alterne entre o portal limpo de produção ou a simulação completa com alunos.
+          </p>
+        </div>
+      </div>
+
+      {/* Tab Selectors */}
+      <div className="flex overflow-x-auto whitespace-nowrap scrollbar-none border-b border-slate-200 dark:border-slate-800 gap-2 select-none pb-0.5">
+        <button
+          type="button"
+          onClick={() => setActiveTab('visu')}
+          className={`pb-3 text-xs sm:text-sm font-extrabold px-3 relative transition-all flex-shrink-0 ${
+            activeTab === 'visu' 
+              ? 'text-blue-700 dark:text-blue-400 border-b-2 border-blue-700 dark:border-blue-400' 
+              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          Painel de Indicadores
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('reg')}
+          className={`pb-3 text-xs sm:text-sm font-extrabold px-3 relative transition-all flex-shrink-0 ${
+            activeTab === 'reg' 
+              ? 'text-blue-700 dark:text-blue-400 border-b-2 border-blue-700 dark:border-blue-400' 
+              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          Cadastros Acadêmicos
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('imp')}
+          className={`pb-3 text-xs sm:text-sm font-extrabold px-3 relative transition-all flex-shrink-0 ${
+            activeTab === 'imp' 
+              ? 'text-blue-700 dark:text-blue-400 border-b-2 border-blue-700 dark:border-blue-400' 
+              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          Importar Planilhas (Excel)
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('msg')}
+          className={`pb-3 text-xs sm:text-sm font-extrabold px-3 relative transition-all flex-shrink-0 ${
+            activeTab === 'msg' 
+              ? 'text-blue-700 dark:text-blue-400 border-b-2 border-blue-700 dark:border-blue-400' 
+              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          Mensagens & Avisos
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('sec')}
+          className={`pb-3 text-xs sm:text-sm font-extrabold px-3 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
+            activeTab === 'sec' 
+              ? 'text-blue-700 dark:text-blue-400 border-b-2 border-blue-700 dark:border-blue-400' 
+              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <Shield className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          <span>Backup & Segurança</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('boletins')}
+          className={`pb-3 text-xs sm:text-sm font-extrabold px-3 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
+            activeTab === 'boletins' 
+              ? 'text-blue-700 dark:text-blue-400 border-b-2 border-blue-700 dark:border-blue-400' 
+              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <GraduationCap className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+          <span>Boletim Completo</span>
+        </button>
+      </div>
+
+      {/* Tab: VISUALIZADOR DE INDICADORES (Stunning Bento Matrix) */}
+      {activeTab === 'visu' && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-6"
+        >
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 rounded-xl">
+                <Users className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Professores</p>
+                <p className="text-xl font-black text-slate-800 dark:text-white leading-none mt-1">{activeTeachers.length}</p>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 rounded-xl">
+                <GraduationCap className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Alunos Ativos</p>
+                <p className="text-xl font-black text-slate-800 dark:text-white leading-none mt-1">{activeStudents.length}</p>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
+              <div className="p-3 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 rounded-xl">
+                <School className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Turmas</p>
+                <p className="text-xl font-black text-slate-800 dark:text-white leading-none mt-1">{classes.length}</p>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
+              <div className="p-3 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 rounded-xl">
+                <BookOpen className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Diários Ativos</p>
+                <p className="text-xl font-black text-slate-800 dark:text-white leading-none mt-1">{journalsTotal}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Performance & Academic Alerts */}
+          <div className="grid md:grid-cols-12 gap-4">
+            {/* Bento 1: Percentual Approvals */}
+            <div className="md:col-span-5 bg-gradient-to-br from-blue-700 to-indigo-900 text-white p-6 rounded-3xl flex flex-col justify-between shadow-lg relative overflow-hidden min-h-[220px]">
+              <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-blue-600/20 rounded-full blur-2xl"></div>
+              <div>
+                <span className="bg-white/15 px-2.5 py-1 rounded-full text-[9px] font-bold tracking-widest uppercase">Índice Geral</span>
+                <h4 className="text-2xl font-black mt-2">Aproveitamento Acadêmico</h4>
+              </div>
+              <div className="my-2 flex items-baseline gap-1">
+                <span className="text-5xl font-black tracking-tighter">{overallApprovalRate.toFixed(1)}%</span>
+                <span className="text-xs text-blue-200">Aprovação</span>
+              </div>
+              <div className="text-xs text-blue-100 flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                <span>{approvedCount} aptos • {failedCount} retidos • {pendingGrades} notas pendentes</span>
+              </div>
+            </div>
+
+            {/* Bento 2: Attendance alerts */}
+            <div className="md:col-span-7 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-3xl flex flex-col justify-between shadow-sm min-h-[220px]">
+              <div>
+                <span className="bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 px-2.5 py-0.5 rounded-full text-[9px] font-bold tracking-widest uppercase">Indicadores Críticos</span>
+                <h4 className="text-lg font-extrabold mt-2 text-slate-800 dark:text-white">Faltas Gerais & Retenções</h4>
+              </div>
+              <div className="grid grid-cols-3 gap-2 py-4 border-y border-slate-100 dark:border-slate-800/80 my-2">
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase block">Faltas Totais</span>
+                  <span className="text-xl font-bold font-mono text-slate-800 dark:text-white">{totalAbsencesCount}h</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase block">Retidos por Faltas</span>
+                  <span className="text-xl font-bold font-mono text-red-600">{grades.filter(g => g.result === 'F. NOTA').length}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase block">Abertura Diários</span>
+                  <span className="text-xl font-bold font-mono text-emerald-600">
+                    {classes.filter(c => !c.closedDefinitive).length} turmas
+                  </span>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 leading-none">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> Limite regulamentar é de 75% de presença para aprovação em cada diário.
+              </p>
+            </div>
+          </div>
+
+          {/* CONTROL CENTER: Automated closing and simulated dates */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-blue-700 dark:text-blue-400" />
+              <div>
+                <h3 className="text-base font-extrabold text-slate-800 dark:text-white">Programação de Prazos & Fechamento Automático</h3>
+                <p className="text-xs text-slate-400">Configure as datas de encerramento para cada período e gerencie o bloqueio automático de diários.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* S1 Deadline */}
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Prazo de Fechamento da S1</label>
+                <input
+                  type="date"
+                  value={calendarEvents.find(e => e.type === 'CLOSING_S1')?.date || ''}
+                  onChange={(e) => {
+                    const ev = calendarEvents.find(evt => evt.type === 'CLOSING_S1');
+                    if (ev) updateCalendarEventDate(ev.id, e.target.value);
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs text-slate-800 dark:text-white font-mono"
+                />
+              </div>
+
+              {/* S2 Deadline */}
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Prazo de Fechamento da S2</label>
+                <input
+                  type="date"
+                  value={calendarEvents.find(e => e.type === 'CLOSING_S2')?.date || ''}
+                  onChange={(e) => {
+                    const ev = calendarEvents.find(evt => evt.type === 'CLOSING_S2');
+                    if (ev) updateCalendarEventDate(ev.id, e.target.value);
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs text-slate-800 dark:text-white font-mono"
+                />
+              </div>
+
+              {/* Definitive Deadline */}
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Fechamento Geral Definitivo</label>
+                <input
+                  type="date"
+                  value={calendarEvents.find(e => e.type === 'DEFINITIVE_CLOSING')?.date || ''}
+                  onChange={(e) => {
+                    const ev = calendarEvents.find(evt => evt.type === 'DEFINITIVE_CLOSING');
+                    if (ev) updateCalendarEventDate(ev.id, e.target.value);
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs text-slate-800 dark:text-white font-mono"
+                />
+              </div>
+
+              {/* Conselho de Classe */}
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Conselho de Classe</label>
+                <input
+                  type="date"
+                  value={calendarEvents.find(e => e.id === 'cal_4' || e.type === CalendarEventType.INFO)?.date || ''}
+                  onChange={(e) => {
+                    const ev = calendarEvents.find(evt => evt.id === 'cal_4' || evt.type === CalendarEventType.INFO);
+                    if (ev) updateCalendarEventDate(ev.id, e.target.value);
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs text-slate-800 dark:text-white font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Checkbox settings */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50 dark:bg-slate-800/20 p-3 rounded-2xl border border-slate-150 dark:border-slate-800/60 text-xs">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="auto-lock-checkbox"
+                  checked={autoLockEnabled}
+                  onChange={(e) => setAutoLockEnabled(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 border-slate-300 dark:border-slate-700 rounded focus:ring-blue-500 cursor-pointer"
+                />
+                <label htmlFor="auto-lock-checkbox" className="font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                  Bloquear diários automaticamente ao atingir os prazos limites
+                </label>
+              </div>
+              <div className="text-[10px] text-slate-400 flex items-center gap-2">
+                <span>Data ativa para testes:</span>
+                <input
+                  type="date"
+                  value={simulatedDate}
+                  onChange={(e) => {
+                    setSimulatedDate(e.target.value);
+                    addSecurityLog('SISTEMA_DATA', `Data ativa para simulação de testes alterada para ${e.target.value.split('-').reverse().join('/')}.`, 'low');
+                  }}
+                  className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer text-xs font-mono"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* CONTROL CENTER: Admin Direct Journals Launching & Printing Hub */}
+          <div id="admin-journals-central-hub" className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none">
+              <div className="flex items-center gap-2">
+                <School className="h-5 w-5 text-blue-700 dark:text-blue-400" />
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-800 dark:text-white">Central de Lançamentos & Controle de Diários</h3>
+                  <p className="text-xs text-slate-400">Abra diários diretamente para lançar notas e faltas ou para visualização de relatórios.</p>
+                </div>
+              </div>
+
+              {/* Class Selector Dropdown */}
+              <div className="w-full sm:max-w-xs space-y-1">
+                <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">Selecione a Turma da Sala</label>
+                <select
+                  id="admin-journals-class-select"
+                  value={selectedAdminClassId}
+                  onChange={(e) => setSelectedAdminClassId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs text-slate-800 dark:text-white font-extrabold cursor-pointer"
+                >
+                  <option value="" disabled>Selecione uma turma...</option>
+                  {activePeriodClasses.map(cls => {
+                    const courseName = courses.find(co => co.id === cls.courseId)?.name || 'Curso';
+                    return (
+                      <option key={cls.id} value={cls.id}>
+                        {cls.code ? `[${cls.code}] ` : ''}{cls.name} ({courseName})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            </div>
+
+            {(() => {
+              const targetClass = activePeriodClasses.find(c => c.id === selectedAdminClassId);
+              if (!targetClass) {
+                return (
+                  <div className="p-8 text-center bg-slate-50 dark:bg-slate-800/20 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                    <p className="text-xs text-slate-400 italic">Nenhuma turma selecionada ou cadastrada para o período {currentPeriod}.</p>
+                  </div>
+                );
+              }
+
+              // Subjects of this class
+              const classSubs = subjects.filter(s => s.courseId === targetClass.courseId && s.module === targetClass.module);
+
+              return (
+                <div className="space-y-4">
+                  {/* Class Info and Global Actions Card */}
+                  <div className="bg-slate-50 dark:bg-slate-800/30 p-4 rounded-2xl border border-slate-150 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-black text-slate-800 dark:text-white">
+                          TURMA: {targetClass.name}
+                        </span>
+                        {targetClass.code && (
+                          <span className="px-1.5 py-0.5 text-[9px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono font-bold rounded">
+                            {targetClass.code}
+                          </span>
+                        )}
+                        <span className={`px-2 py-0.5 text-[9px] font-bold rounded ${
+                          targetClass.closedDefinitive
+                            ? 'bg-red-100 dark:bg-red-950/45 text-red-700 dark:text-red-400'
+                            : 'bg-emerald-100 dark:bg-emerald-950/45 text-emerald-700 dark:text-emerald-400'
+                        }`}>
+                          {targetClass.closedDefinitive ? 'FECHAMENTO DEFINITIVO' : 'DIÁRIOS ABERTOS'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Turno: <strong>{targetClass.shift}</strong> • Módulo: <strong>Módulo {targetClass.module}</strong> • Ano/Semestre: <strong>{targetClass.year}/{targetClass.semester}</strong> • Total de Disciplinas: <strong>{classSubs.length}</strong>
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        id="admin-btn-print-mapa-notas"
+                        onClick={() => {
+                          const firstSub = classSubs[0];
+                          if (!firstSub) {
+                            alert('Nenhuma disciplina encontrada para esta turma.');
+                            return;
+                          }
+                          setPrintDoc({ type: 'mapa_notas', classId: targetClass.id, subjectId: firstSub.id });
+                        }}
+                        className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 shadow-sm shadow-blue-600/10 cursor-pointer"
+                        title="Imprimir Mapa de Notas Completo de Todos os Diários"
+                      >
+                        <Printer className="h-3.5 w-3.5" /> Abrir Todos os Diários (Mapa da Sala)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* List of Journals of the selected class */}
+                  <div className="border border-slate-150 dark:border-slate-800 rounded-2xl overflow-hidden divide-y divide-slate-150 dark:divide-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+                    <div className="bg-slate-50/50 dark:bg-slate-800/40 p-3 grid grid-cols-12 gap-2 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                      <div className="col-span-12 sm:col-span-5">Disciplina / Diário</div>
+                      <div className="col-span-6 sm:col-span-3 text-center">Status de Acesso</div>
+                      <div className="col-span-6 sm:col-span-4 text-right">Ações Rápidas de Lançamento & Impressão</div>
+                    </div>
+
+                    {classSubs.length === 0 ? (
+                      <p className="p-4 text-xs text-slate-400 italic text-center col-span-12">Nenhuma matéria vinculada a este módulo/curso.</p>
+                    ) : (
+                      classSubs.map(sub => {
+                        // Check locks
+                        const closedS1 = targetClass.closedS1;
+                        const closedS2 = targetClass.closedS2;
+                        const closedDef = targetClass.closedDefinitive;
+
+                        return (
+                          <div key={sub.id} className="p-3.5 grid grid-cols-12 gap-2 items-center hover:bg-slate-50/50 dark:hover:bg-slate-850/10 transition-all">
+                            {/* Subject Name and CH */}
+                            <div className="col-span-12 sm:col-span-5 space-y-0.5">
+                              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                                {sub.name}
+                              </p>
+                              <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                                <span>Carga Horária: <strong>{sub.workload} horas</strong></span>
+                                <span>•</span>
+                                <span>Cód. Disciplina: <strong className="font-mono">{sub.id}</strong></span>
+                              </p>
+                            </div>
+
+                            {/* Locks Status pills */}
+                            <div className="col-span-6 sm:col-span-3 flex justify-center gap-1.5 flex-wrap">
+                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${
+                                closedS1 
+                                  ? 'bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-950/30' 
+                                  : 'bg-emerald-50 dark:bg-emerald-950/10 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-950/20'
+                              }`}>
+                                S1: {closedS1 ? 'BLOQ.' : 'LIB.'}
+                              </span>
+                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${
+                                closedS2 
+                                  ? 'bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-950/30' 
+                                  : 'bg-emerald-50 dark:bg-emerald-950/10 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-950/20'
+                              }`}>
+                                S2: {closedS2 ? 'BLOQ.' : 'LIB.'}
+                              </span>
+                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${
+                                closedDef 
+                                  ? 'bg-red-100 dark:bg-red-950/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-950/40' 
+                                  : 'bg-emerald-100 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-950/30'
+                              }`}>
+                                DEF: {closedDef ? 'FECHADO' : 'ATIVO'}
+                              </span>
+                            </div>
+
+                            {/* Direct launch / print buttons */}
+                            <div className="col-span-6 sm:col-span-4 flex justify-end gap-1.5 flex-wrap">
+                              {/* Direct Launch Grades */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveClassId(targetClass.id);
+                                  setActiveSubjectId(sub.id);
+                                  setGradeWindowState('open');
+                                  setIsGradeWindowMaximized(false);
+                                }}
+                                className="px-2 py-1 bg-blue-50 hover:bg-blue-100 dark:bg-slate-800 dark:hover:bg-slate-750 text-blue-700 dark:text-blue-300 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 border border-blue-100 dark:border-slate-700"
+                                title="Abrir Diário de Notas para Lançamento direto"
+                              >
+                                📝 Notas
+                              </button>
+
+                              {/* Direct Launch Attendance */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveClassId(targetClass.id);
+                                  setActiveSubjectId(sub.id);
+                                  setAttendanceWindowState('open');
+                                  setIsAttendanceWindowMaximized(false);
+                                }}
+                                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 dark:bg-slate-800 dark:hover:bg-slate-750 text-emerald-700 dark:text-emerald-300 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 border border-emerald-100 dark:border-slate-700"
+                                title="Abrir Diário de Frequência para Lançamento direto (Faltas)"
+                              >
+                                📅 Faltas
+                              </button>
+
+                              {/* Print single subject Grades journal */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPrintDoc({ type: 'diario_notas', classId: targetClass.id, subjectId: sub.id });
+                                }}
+                                className="p-1 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg transition-all border border-slate-200 dark:border-slate-700 cursor-pointer flex items-center justify-center"
+                                title="Imprimir Diário de Notas desta Disciplina"
+                              >
+                                <Printer className="h-3.5 w-3.5" />
+                              </button>
+
+                              {/* Print single subject Attendance journal */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPrintDoc({ type: 'diario_freq', classId: targetClass.id, subjectId: sub.id });
+                                }}
+                                className="p-1 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg transition-all border border-slate-200 dark:border-slate-700 cursor-pointer flex items-center justify-center"
+                                title="Imprimir Diário de Frequência desta Disciplina"
+                              >
+                                <Calendar className="h-3.5 w-3.5 text-slate-600 dark:text-slate-300" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Student Directory & Print Hub (Ficha de Aproveitamento) */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 select-none">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-800 dark:text-white">Diretório de Aproveitamento Individual</h3>
+                <p className="text-xs text-slate-400">Pesquise por alunos e visualize/imprima boletins acadêmicos oficiais.</p>
+              </div>
+
+              {/* Search Bar */}
+              <div className="relative w-full sm:max-w-xs">
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                  <Search className="h-4 w-4" />
+                </span>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar por nome ou matrícula..."
+                  className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-800 dark:text-white transition-all text-xs"
+                />
+              </div>
+            </div>
+
+            {/* Students List Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto pr-1">
+              {filteredStudents.length > 0 ? (
+                filteredStudents.map(student => {
+                  const sGrades = grades.filter(g => g.studentId === student.id);
+                  const isAptoAll = sGrades.length > 0 && sGrades.every(g => g.result === 'APTO');
+                  return (
+                    <div 
+                      key={student.id} 
+                      className="p-4 bg-slate-50 dark:bg-slate-800/30 border border-slate-200/50 dark:border-slate-800/60 rounded-2xl flex items-center justify-between hover:border-blue-400 dark:hover:border-blue-800 transition-all shadow-sm"
+                    >
+                      <div>
+                        <p className="font-extrabold text-slate-800 dark:text-white text-xs">{student.name}</p>
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">Matrícula: {student.enrollment}</p>
+                      </div>
+                      <button
+                        type="button"
+                        id={`print-boletim-${student.enrollment}-btn`}
+                        onClick={() => setPrintDoc({ type: 'boletim', studentId: student.id })}
+                        className="p-2 bg-blue-50 dark:bg-slate-800 text-blue-700 dark:text-blue-300 rounded-xl hover:bg-blue-100 transition-all"
+                        title="Imprimir Ficha de Aproveitamento"
+                      >
+                        <Printer className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="col-span-full py-8 text-center text-slate-400">
+                  <Inbox className="h-8 w-8 mx-auto mb-2 opacity-60" /> Ninguém encontrado com os critérios digitados.
+                </div>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Tab: CADASTROS ACADÊMICOS (Forms to extend metadata) */}
+      {activeTab === 'reg' && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="grid md:grid-cols-12 gap-6"
+        >
+          {/* Create Class Form */}
+          <div className="md:col-span-6 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
+            <div className="flex items-center gap-1.5 mb-4 text-slate-800 dark:text-white">
+              <FolderPlus className="h-5 w-5 text-blue-700 dark:text-blue-400" />
+              <h4 className="font-bold">Cadastrar Nova Turma</h4>
+            </div>
+
+            <form onSubmit={handleCreateClass} className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Nome da Turma</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="Ex: 2A MAT" 
+                    value={className}
+                    onChange={(e) => setClassName(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 focus:bg-white rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Código da Turma</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: ENF-M2-MAT" 
+                    value={classCode}
+                    onChange={(e) => setClassCode(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 focus:bg-white rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Curso Vinculado</label>
+                <select
+                  value={classCourse}
+                  onChange={(e) => setClassCourse(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                >
+                  {courses.map(co => (
+                    <option key={co.id} value={co.id}>{co.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Turno</label>
+                  <select
+                    value={classShift}
+                    onChange={(e) => setClassShift(e.target.value as Shift)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                  >
+                    {Object.values(Shift).map(sh => (
+                      <option key={sh} value={sh}>{sh}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Módulo / Período</label>
+                  <select
+                    value={classModule}
+                    onChange={(e) => setClassModule(parseInt(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                  >
+                    <option value={1}>Módulo I</option>
+                    <option value={2}>Módulo II</option>
+                    <option value={3}>Módulo III</option>
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                id="create-class-submit-btn"
+                className="w-full py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-xl shadow shadow-blue-600/10 transition-all cursor-pointer"
+              >
+                Criar Turma
+              </button>
+            </form>
+          </div>
+
+          {/* Create Subject Form */}
+          <div className="md:col-span-6 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
+            <div className="flex items-center gap-1.5 mb-4 text-slate-800 dark:text-white">
+              <BookOpen className="h-5 w-5 text-blue-700 dark:text-blue-400" />
+              <h4 className="font-bold">Nova Disciplina</h4>
+            </div>
+
+            <form onSubmit={handleCreateSubject} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Nome da Matéria</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="Ex: NOÇÕES DE ANESTESIOLOGIA" 
+                  value={subName}
+                  onChange={(e) => setSubName(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 focus:bg-white rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Grade do Curso</label>
+                <select
+                  value={subCourse}
+                  onChange={(e) => setSubCourse(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                >
+                  {courses.map(co => (
+                    <option key={co.id} value={co.id}>{co.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Módulo</label>
+                  <select
+                    value={subModule}
+                    onChange={(e) => setSubModule(parseInt(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                  >
+                    <option value={1}>Módulo I</option>
+                    <option value={2}>Módulo II</option>
+                    <option value={3}>Módulo III</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Carga Horária</label>
+                  <select
+                    value={subWorkload}
+                    onChange={(e) => setSubWorkload(parseInt(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                  >
+                    <option value={20}>20 Horas</option>
+                    <option value={40}>40 Horas</option>
+                    <option value={80}>80 Horas</option>
+                    <option value={120}>120 Horas</option>
+                    <option value={160}>160 Horas</option>
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                id="create-subject-submit-btn"
+                className="w-full py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-xl shadow shadow-blue-600/10 transition-all cursor-pointer"
+              >
+                Cadastrar Matéria
+              </button>
+            </form>
+          </div>
+
+          {/* Create User Form (Teacher or Admin) */}
+          <div className="md:col-span-6 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
+            <div className="flex items-center gap-1.5 mb-4 text-slate-800 dark:text-white">
+              <UserPlus className="h-5 w-5 text-blue-700 dark:text-blue-400" />
+              <h4 className="font-bold">Cadastrar Usuário (Docente ou Administração)</h4>
+            </div>
+
+            <form onSubmit={handleCreateUser} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Tipo de Usuário</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTeachRole(UserRole.TEACHER)}
+                    className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all ${
+                      teachRole === UserRole.TEACHER
+                        ? 'bg-blue-50 dark:bg-blue-950/45 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-900'
+                        : 'bg-slate-50 dark:bg-slate-850 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-750 hover:bg-slate-100'
+                    }`}
+                  >
+                    Professor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTeachRole(UserRole.ADMIN)}
+                    className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all ${
+                      teachRole === UserRole.ADMIN
+                        ? 'bg-blue-50 dark:bg-blue-950/45 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-900'
+                        : 'bg-slate-50 dark:bg-slate-850 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-750 hover:bg-slate-100'
+                    }`}
+                  >
+                    Administração (Admin)
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Nome Completo</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="Ex: Letícia Fernandes de Souza" 
+                  value={teachName}
+                  onChange={(e) => setTeachName(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 focus:bg-white rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">E-mail de Contato</label>
+                <input 
+                  type="email" 
+                  required
+                  placeholder="Ex: leticia@lynxedu.com.br" 
+                  value={teachEmail}
+                  onChange={(e) => setTeachEmail(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 focus:bg-white rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Senha de Acesso (Senha Livre)
+                </label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="Defina a senha de acesso" 
+                  value={userPassword}
+                  onChange={(e) => setUserPassword(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 focus:bg-white rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                />
+              </div>
+
+              {teachRole === UserRole.TEACHER && (
+                <div className="bg-blue-50/50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/40 text-[10px] text-blue-700 dark:text-blue-300 leading-relaxed">
+                  🔒 <strong>Controle de Acesso:</strong> Após cadastrar o docente, use a seção de <strong>"Gerenciador de Acessos de Professores"</strong> ao final desta página para definir exatamente quais turmas e disciplinas ele poderá acessar.
+                </div>
+              )}
+
+              <button
+                type="submit"
+                id="create-user-submit-btn"
+                className="w-full py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-xl shadow shadow-blue-600/10 transition-all cursor-pointer"
+              >
+                Cadastrar {teachRole === UserRole.TEACHER ? 'Docente' : 'Administrador'}
+              </button>
+            </form>
+          </div>
+
+          {/* Form para Matricular Aluno Individual */}
+          <div className="md:col-span-6 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
+            <div className="flex items-center gap-1.5 mb-4 text-slate-800 dark:text-white">
+              <UserCheck className="h-5 w-5 text-blue-700 dark:text-blue-400" />
+              <h4 className="font-bold">Matricular Aluno na Turma</h4>
+            </div>
+
+            <form onSubmit={handleEnrollSingleStudent} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Selecionar Turma Destino</label>
+                <select
+                  required
+                  value={selectedClassIdForStudents}
+                  onChange={(e) => setSelectedClassIdForStudents(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                >
+                  <option value="" disabled>Selecione uma turma...</option>
+                  {classes.map(cl => (
+                    <option key={cl.id} value={cl.id}>
+                      Período: {cl.year}/{cl.semester} | {cl.code ? `[${cl.code}] ` : ''}{cl.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Número de Matrícula
+                  </label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="Ex: 26101015" 
+                    value={singleStudentEnrollment}
+                    onChange={(e) => setSingleStudentEnrollment(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 focus:bg-white rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Nome do Aluno
+                  </label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="Digite o nome completo do aluno" 
+                    value={singleStudentName}
+                    onChange={(e) => setSingleStudentName(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 focus:bg-white rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-blue-50/50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/40 text-[10px] text-blue-700 dark:text-blue-300 leading-relaxed">
+                ℹ️ <strong>Regra Acadêmica:</strong> Ao matricular, o aluno é vinculado a <strong>todos os diários e disciplinas</strong> desta sala/turma simultaneamente.
+              </div>
+
+              <button
+                type="submit"
+                id="single-student-submit-btn"
+                className="w-full py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-xl shadow shadow-blue-600/10 transition-all cursor-pointer uppercase tracking-wider"
+              >
+                Matricular
+              </button>
+            </form>
+          </div>
+
+          {/* Gerenciar e Excluir Turmas */}
+          <div className="md:col-span-6 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-1.5 mb-3 text-slate-800 dark:text-white">
+                <Trash2 className="h-5 w-5 text-red-600" />
+                <h4 className="font-bold">Gerenciar e Excluir Turmas</h4>
+              </div>
+
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Pesquisar por nome, código ou curso..."
+                  value={classSearchQuery}
+                  onChange={(e) => setClassSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white focus:bg-white"
+                />
+              </div>
+
+              <div className="space-y-2 max-h-[290px] overflow-y-auto pr-1">
+                {classes.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic text-center py-4">Nenhuma turma cadastrada.</p>
+                ) : (() => {
+                  const filteredClassList = classes.filter(cl => {
+                    if (!classSearchQuery) return true;
+                    const query = classSearchQuery.toLowerCase();
+                    const courseName = courses.find(co => co.id === cl.courseId)?.name || '';
+                    return (
+                      cl.name.toLowerCase().includes(query) ||
+                      (cl.code && cl.code.toLowerCase().includes(query)) ||
+                      courseName.toLowerCase().includes(query) ||
+                      cl.shift.toLowerCase().includes(query)
+                    );
+                  });
+
+                  if (filteredClassList.length === 0) {
+                    return <p className="text-xs text-slate-400 italic text-center py-4">Nenhuma turma correspondente encontrada.</p>;
+                  }
+
+                  return filteredClassList.map(cl => {
+                    const courseName = courses.find(co => co.id === cl.courseId)?.name || 'Curso';
+                    const isConfirming = confirmDeleteClassId === cl.id;
+                    const isEditing = editingClassId === cl.id;
+
+                    if (isEditing) {
+                      return (
+                        <div 
+                          key={cl.id}
+                          className="p-3 bg-blue-50/40 dark:bg-blue-950/15 border border-blue-200 dark:border-blue-900/40 rounded-xl space-y-3 animate-fade-in"
+                        >
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Nome da Turma</label>
+                              <input 
+                                type="text"
+                                value={editClassName}
+                                onChange={(e) => setEditClassName(e.target.value)}
+                                className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-white outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Código / Sigla</label>
+                              <input 
+                                type="text"
+                                value={editClassCode}
+                                onChange={(e) => setEditClassCode(e.target.value)}
+                                className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono font-bold text-slate-800 dark:text-white outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-4 gap-1.5">
+                            <div>
+                              <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Turno</label>
+                              <select
+                                value={editClassShift}
+                                onChange={(e) => setEditClassShift(e.target.value as Shift)}
+                                className="w-full px-1 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] text-slate-800 dark:text-white outline-none"
+                              >
+                                <option value="MATUTINO">Matutino</option>
+                                <option value="VESPERTINO">Vespertino</option>
+                                <option value="NOTURNO">Nocturno</option>
+                                <option value="SÁBADO">Sábado</option>
+                                <option value="EAD">EAD</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Mód.</label>
+                              <input 
+                                type="number"
+                                min={1}
+                                max={10}
+                                value={editClassModule}
+                                onChange={(e) => setEditClassModule(parseInt(e.target.value) || 1)}
+                                className="w-full px-1 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] text-slate-800 dark:text-white outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Ano</label>
+                              <input 
+                                type="number"
+                                value={editClassYear}
+                                onChange={(e) => setEditClassYear(parseInt(e.target.value) || 2026)}
+                                className="w-full px-1 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] text-slate-800 dark:text-white outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Sem.</label>
+                              <input 
+                                type="number"
+                                min={1}
+                                max={2}
+                                value={editClassSemester}
+                                onChange={(e) => setEditClassSemester(parseInt(e.target.value) || 1)}
+                                className="w-full px-1 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] text-slate-800 dark:text-white outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end gap-1.5 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setEditingClassId(null)}
+                              className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-[10px] font-bold rounded-lg text-slate-600 dark:text-slate-400 cursor-pointer"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateClass(cl.id, {
+                                  name: editClassName,
+                                  code: editClassCode,
+                                  shift: editClassShift,
+                                  module: editClassModule,
+                                  year: editClassYear,
+                                  semester: editClassSemester
+                                });
+                                setEditingClassId(null);
+                              }}
+                              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg shadow-sm cursor-pointer"
+                            >
+                              Salvar
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div 
+                        key={cl.id}
+                        className="p-3 bg-slate-50/50 dark:bg-slate-850/40 border border-slate-200/60 dark:border-slate-800/60 rounded-xl flex items-center justify-between gap-3"
+                      >
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
+                            <span>{cl.name}</span>
+                            {cl.code && (
+                              <span className="px-1.5 py-0.5 text-[9px] bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded font-mono font-bold">
+                                {cl.code}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-[10px] text-slate-400">
+                            {courseName} • {cl.shift} • Mód. {cl.module} ({cl.year}/{cl.semester})
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingClassId(cl.id);
+                              setEditClassName(cl.name);
+                              setEditClassCode(cl.code || '');
+                              setEditClassShift(cl.shift);
+                              setEditClassModule(cl.module);
+                              setEditClassYear(cl.year);
+                              setEditClassSemester(cl.semester);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-150/50 dark:hover:bg-slate-800 rounded-lg transition-all"
+                            title="Editar Turma"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isConfirming) {
+                                deleteClass(cl.id);
+                                setConfirmDeleteClassId(null);
+                              } else {
+                                setConfirmDeleteClassId(cl.id);
+                              }
+                            }}
+                            className={`p-1.5 rounded-lg transition-all text-xs ${
+                              isConfirming 
+                                ? 'bg-red-600 text-white animate-pulse font-bold px-2 py-1' 
+                                : 'text-slate-400 hover:text-red-500 hover:bg-slate-150/50 dark:hover:bg-slate-800'
+                            }`}
+                            title={isConfirming ? 'Confirmar exclusão desta turma?' : 'Excluir Turma'}
+                          >
+                            {isConfirming ? 'Confirmar?' : <Trash2 className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          </div>
+
+          {/* Gerenciar Usuários Cadastrados */}
+          <div className="md:col-span-6 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-1.5 text-slate-800 dark:text-white">
+                  <Users className="h-5 w-5 text-blue-700 dark:text-blue-400" />
+                  <h4 className="font-bold">Gerenciar Usuários Cadastrados</h4>
+                </div>
+              </div>
+
+              {/* Search user */}
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Pesquisar por nome, usuário, e-mail ou matrícula..."
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white focus:bg-white placeholder-slate-400"
+                />
+              </div>
+
+              {/* Role filter pills */}
+              <div className="flex flex-wrap gap-1 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setUserRoleFilter('ALL')}
+                  className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                    userRoleFilter === 'ALL'
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
+                  }`}
+                >
+                  Todos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUserRoleFilter(UserRole.ADMIN)}
+                  className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                    userRoleFilter === UserRole.ADMIN
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
+                  }`}
+                >
+                  Admin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUserRoleFilter(UserRole.TEACHER)}
+                  className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                    userRoleFilter === UserRole.TEACHER
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
+                  }`}
+                >
+                  Professores
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUserRoleFilter(UserRole.STUDENT)}
+                  className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition-all cursor-pointer ${
+                    userRoleFilter === UserRole.STUDENT
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
+                  }`}
+                >
+                  Alunos
+                </button>
+              </div>
+
+              {/* User list */}
+              <div className="space-y-2 max-h-[290px] overflow-y-auto pr-1">
+                {(() => {
+                  const filteredUsers = users.filter(u => {
+                    if (userSearchQuery) {
+                      const q = userSearchQuery.toLowerCase();
+                      const matchName = u.name.toLowerCase().includes(q);
+                      const matchUsername = u.username.toLowerCase().includes(q);
+                      const matchEmail = u.email.toLowerCase().includes(q);
+                      const matchEnrollment = u.enrollment ? u.enrollment.toLowerCase().includes(q) : false;
+                      if (!matchName && !matchUsername && !matchEmail && !matchEnrollment) {
+                        return false;
+                      }
+                    }
+
+                    if (userRoleFilter !== 'ALL' && u.role !== userRoleFilter) {
+                      return false;
+                    }
+
+                    return true;
+                  });
+
+                  if (filteredUsers.length === 0) {
+                    return <p className="text-xs text-slate-400 italic text-center py-4">Nenhum usuário correspondente encontrado.</p>;
+                  }
+
+                  return filteredUsers.map(u => {
+                    const isUserEditing = editingUserId === u.id;
+                    const isUserConfirmingDelete = confirmDeleteUserId === u.id;
+
+                    if (isUserEditing) {
+                      return (
+                        <div 
+                          key={u.id}
+                          className="p-3 bg-blue-50/40 dark:bg-blue-950/15 border border-blue-200 dark:border-blue-900/40 rounded-xl space-y-3 animate-fade-in"
+                        >
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Nome Completo</label>
+                              <input 
+                                type="text"
+                                value={editUserName}
+                                onChange={(e) => setEditUserName(e.target.value)}
+                                className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold text-slate-800 dark:text-white outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">E-mail</label>
+                              <input 
+                                type="email"
+                                value={editUserEmail}
+                                onChange={(e) => setEditUserEmail(e.target.value)}
+                                className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-white outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Nome de Usuário</label>
+                              <input 
+                                type="text"
+                                value={editUserUsername}
+                                onChange={(e) => setEditUserUsername(e.target.value)}
+                                className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-800 dark:text-white outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Senha de Acesso</label>
+                              <input 
+                                type="text"
+                                value={editUserPassword}
+                                onChange={(e) => setEditUserPassword(e.target.value)}
+                                className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-800 dark:text-white outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-1.5">
+                            <div className="col-span-1">
+                              <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Função</label>
+                              <select
+                                value={editUserRole}
+                                onChange={(e) => setEditUserRole(e.target.value as UserRole)}
+                                className="w-full px-1 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] text-slate-800 dark:text-white outline-none"
+                              >
+                                <option value={UserRole.STUDENT}>Aluno</option>
+                                <option value={UserRole.TEACHER}>Professor</option>
+                                <option value={UserRole.ADMIN}>Administrador</option>
+                              </select>
+                            </div>
+                            <div className="col-span-1">
+                              <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Matrícula</label>
+                              <input 
+                                type="text"
+                                value={editUserEnrollment}
+                                onChange={(e) => setEditUserEnrollment(e.target.value)}
+                                className="w-full px-1 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] text-slate-800 dark:text-white outline-none font-mono"
+                              />
+                            </div>
+                            <div className="col-span-1">
+                              <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">CPF</label>
+                              <input 
+                                type="text"
+                                value={editUserCpf}
+                                onChange={(e) => setEditUserCpf(e.target.value)}
+                                className="w-full px-1 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] text-slate-800 dark:text-white outline-none font-mono"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end gap-1.5 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setEditingUserId(null)}
+                              className="px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-[10px] font-bold rounded-lg text-slate-600 dark:text-slate-400 cursor-pointer"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateUser(u.id, {
+                                  name: editUserName,
+                                  email: editUserEmail,
+                                  username: editUserUsername,
+                                  password: editUserPassword,
+                                  role: editUserRole,
+                                  enrollment: editUserEnrollment || undefined,
+                                  cpf: editUserCpf || undefined
+                                });
+                                setEditingUserId(null);
+                              }}
+                              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg shadow-sm cursor-pointer"
+                            >
+                              Salvar
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div 
+                        key={u.id}
+                        className="p-3 bg-slate-50/50 dark:bg-slate-850/40 border border-slate-200/60 dark:border-slate-800/60 rounded-xl flex items-center justify-between gap-3"
+                      >
+                        <div className="space-y-0.5 min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{u.name}</span>
+                            <span className={`px-1.5 py-0.5 text-[8px] font-extrabold uppercase rounded ${
+                              u.role === UserRole.ADMIN 
+                                ? 'bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300' 
+                                : u.role === UserRole.TEACHER 
+                                ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400' 
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                            }`}>
+                              {u.role === UserRole.ADMIN ? 'Admin' : u.role === UserRole.TEACHER ? 'Prof' : 'Aluno'}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 truncate">
+                            Usuário: <span className="font-mono font-bold text-slate-600 dark:text-slate-300">{u.username}</span>
+                            {u.enrollment && <> • Matrícula: <span className="font-mono font-bold text-slate-600 dark:text-slate-300">{u.enrollment}</span></>}
+                            {u.password && <> • Senha: <span className="font-mono font-bold text-slate-600 dark:text-slate-300">{u.password}</span></>}
+                          </p>
+                          <p className="text-[9px] text-slate-400 truncate">{u.email}</p>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingUserId(u.id);
+                              setEditUserName(u.name);
+                              setEditUserEmail(u.email);
+                              setEditUserUsername(u.username);
+                              setEditUserPassword(u.password || '');
+                              setEditUserRole(u.role);
+                              setEditUserEnrollment(u.enrollment || '');
+                              setEditUserCpf(u.cpf || '');
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-150/50 dark:hover:bg-slate-800 rounded-lg transition-all"
+                            title="Editar Usuário"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isUserConfirmingDelete) {
+                                deleteUser(u.id);
+                                setConfirmDeleteUserId(null);
+                              } else {
+                                setConfirmDeleteUserId(u.id);
+                              }
+                            }}
+                            className={`p-1.5 rounded-lg transition-all text-xs ${
+                              isUserConfirmingDelete 
+                                ? 'bg-red-600 text-white animate-pulse font-bold px-2 py-1' 
+                                : 'text-slate-400 hover:text-red-500 hover:bg-slate-150/50 dark:hover:bg-slate-800'
+                            }`}
+                            title={isUserConfirmingDelete ? 'Confirmar exclusão deste usuário?' : 'Excluir Usuário'}
+                          >
+                            {isUserConfirmingDelete ? 'Confirmar?' : <Trash2 className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          </div>
+
+          {/* Gerenciador de Acessos de Professores */}
+          <div className="md:col-span-12 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-1.5 text-slate-800 dark:text-white">
+                <Shield className="h-5 w-5 text-blue-700 dark:text-blue-400" />
+                <h4 className="font-extrabold">Gerenciador de Acessos de Professores (Salas e Diários)</h4>
+              </div>
+              <span className="text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 px-2.5 py-1 rounded-full uppercase tracking-wider">
+                Controle de Diários
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Defina quais turmas (salas) e disciplinas (diários) cada professor tem permissão para acessar. Professores sem diários atribuídos não visualizarão nenhuma turma ou diário ao fazer login.
+            </p>
+
+            <div className="grid lg:grid-cols-12 gap-6 pt-2">
+              {/* List of Teachers */}
+              <div className="lg:col-span-5 space-y-2 max-h-[480px] overflow-y-auto pr-2">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Selecione o Docente</p>
+                {activeTeachers.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 dark:bg-slate-850 rounded-xl">Nenhum professor cadastrado.</p>
+                ) : (
+                  activeTeachers.map(teacher => {
+                    const isSelected = editingTeacherId === teacher.id;
+                    const assignedCount = teacher.assignedJournals?.length || 0;
+                    return (
+                      <div
+                        key={teacher.id}
+                        className={`w-full p-3 rounded-xl transition-all border flex items-center justify-between gap-2 ${
+                          isSelected 
+                            ? 'bg-blue-50 dark:bg-blue-950/25 border-blue-200 dark:border-blue-900/30 text-blue-950 dark:text-blue-200 ring-2 ring-blue-600/10' 
+                            : 'bg-slate-50/50 dark:bg-slate-850/40 border-slate-200/60 dark:border-slate-800/60 text-slate-800 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingTeacherId(teacher.id);
+                            if (teacher.assignedJournals && teacher.assignedJournals.length > 0) {
+                              const firstAssignedClassId = teacher.assignedJournals[0].classId;
+                              const cls = classes.find(c => c.id === firstAssignedClassId);
+                              if (cls) {
+                                setSelectedCourseIdFilter(cls.courseId);
+                              }
+                            }
+                          }}
+                          className="flex-1 text-left min-w-0"
+                        >
+                          <div className="space-y-1">
+                            <p className="text-xs font-bold truncate">{teacher.name}</p>
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 flex-wrap">
+                              <span className="truncate">Usuário: <strong className="text-slate-600 dark:text-slate-300 font-mono">{teacher.username}</strong></span>
+                              <span>•</span>
+                              <span>Matrícula: <strong className="font-mono">{teacher.enrollment}</strong></span>
+                              <span>•</span>
+                              <span>Senha: <strong className="text-blue-600 dark:text-blue-400 font-mono">{teacher.password || 'Sem senha'}</strong></span>
+                            </div>
+                          </div>
+                        </button>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            assignedCount > 0 
+                              ? 'bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400' 
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                          }`}>
+                            {assignedCount} {assignedCount === 1 ? 'diário' : 'diários'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirmDeleteTeacherId === teacher.id) {
+                                deleteUser(teacher.id);
+                                if (editingTeacherId === teacher.id) {
+                                  setEditingTeacherId(null);
+                                }
+                                setConfirmDeleteTeacherId(null);
+                              } else {
+                                setConfirmDeleteTeacherId(teacher.id);
+                              }
+                            }}
+                            className={`p-1.5 rounded-lg transition-all ${
+                              confirmDeleteTeacherId === teacher.id
+                                ? 'bg-red-600 text-white animate-pulse text-[10px] font-extrabold px-2 py-1'
+                                : 'text-slate-400 hover:text-red-500 hover:bg-slate-150/50 dark:hover:bg-slate-800'
+                            }`}
+                            title={confirmDeleteTeacherId === teacher.id ? 'Confirmar Exclusão?' : 'Excluir Professor'}
+                          >
+                            {confirmDeleteTeacherId === teacher.id ? (
+                              <span>Confirmar?</span>
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Assignment Controls */}
+              <div className="lg:col-span-7 bg-slate-50/50 dark:bg-slate-850/30 border border-slate-150 dark:border-slate-800/80 p-5 rounded-xl space-y-4">
+                {editingTeacherId ? (
+                  (() => {
+                    const teacher = users.find(u => u.id === editingTeacherId);
+                    if (!teacher) return null;
+                    const assignedList = teacher.assignedJournals || [];
+
+                    // Filter classes for the selected Course and optionally by academic period
+                    const filteredClasses = classes.filter(c => {
+                      const courseMatch = c.courseId === selectedCourseIdFilter;
+                      if (!courseMatch) return false;
+                      if (filterJournalsByPeriod) {
+                        const [yearStr, semStr] = currentPeriod.split('/');
+                        const currentYear = parseInt(yearStr) || 2026;
+                        const currentSemester = parseInt(semStr) || 1;
+                        return c.year === currentYear && c.semester === currentSemester;
+                      }
+                      return true;
+                    });
+
+                    return (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-150 dark:border-slate-800">
+                          <div>
+                            <p className="text-[10px] font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider">Configurando Acesso para:</p>
+                            <h5 className="font-extrabold text-xs text-slate-800 dark:text-white mt-0.5">{teacher.name}</h5>
+                          </div>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const allJournals: { classId: string; subjectId: string }[] = [];
+                                classes.forEach(cls => {
+                                  const classSubs = subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module);
+                                  classSubs.forEach(sub => {
+                                    allJournals.push({ classId: cls.id, subjectId: sub.id });
+                                  });
+                                });
+                                updateUser(teacher.id, { assignedJournals: allJournals });
+                              }}
+                              className="px-2 py-1 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-900 text-[10px] font-extrabold text-blue-700 dark:text-blue-300 rounded hover:bg-blue-100 transition-all cursor-pointer"
+                            >
+                              Liberar Tudo
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updateUser(teacher.id, { assignedJournals: [] });
+                              }}
+                              className="px-2 py-1 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 text-[10px] font-extrabold text-red-700 dark:text-red-300 rounded hover:bg-red-100 transition-all cursor-pointer"
+                            >
+                              Limpar Tudo
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Filter by Course and Period */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filtrar por Curso</p>
+                            <label className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/50 dark:hover:bg-slate-750/50 border border-slate-200 dark:border-slate-700 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none transition-all">
+                              <input
+                                type="checkbox"
+                                checked={filterJournalsByPeriod}
+                                onChange={(e) => setFilterJournalsByPeriod(e.target.checked)}
+                                className="rounded text-blue-600 focus:ring-blue-500 border-slate-300 dark:border-slate-700"
+                              />
+                              <span>Filtrar período ativo ({currentPeriod})</span>
+                            </label>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {courses.map(co => (
+                              <button
+                                key={co.id}
+                                type="button"
+                                onClick={() => setSelectedCourseIdFilter(co.id)}
+                                className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border transition-all ${
+                                  selectedCourseIdFilter === co.id
+                                    ? 'bg-blue-600 border-blue-600 text-white'
+                                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
+                                }`}
+                              >
+                                {co.name}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Class sections with checkboxes */}
+                        <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                          {filteredClasses.length === 0 ? (
+                            <p className="text-xs text-slate-400 italic text-center py-6">Nenhuma turma para este filtro.</p>
+                          ) : (
+                            filteredClasses.map(cls => {
+                              const classSubs = subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module);
+                              return (
+                                <div key={cls.id} className="bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-150 dark:border-slate-800 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <h6 className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
+                                      <span>{cls.name}</span>
+                                      <span className="px-1.5 py-0.5 text-[9px] bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 rounded font-bold">
+                                        Período {cls.year}/{cls.semester}
+                                      </span>
+                                      {cls.code && (
+                                        <span className="px-1.5 py-0.5 text-[9px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded font-mono font-bold">
+                                          {cls.code}
+                                        </span>
+                                      )}
+                                    </h6>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const otherAssigned = assignedList.filter(j => j.classId !== cls.id);
+                                        const isAllAssignedOfThisClass = classSubs.every(s => assignedList.some(j => j.classId === cls.id && j.subjectId === s.id));
+                                        
+                                        let updated;
+                                        if (isAllAssignedOfThisClass) {
+                                          updated = otherAssigned;
+                                        } else {
+                                          const added = classSubs.map(s => ({ classId: cls.id, subjectId: s.id }));
+                                          updated = [...otherAssigned, ...added];
+                                        }
+                                        updateUser(teacher.id, { assignedJournals: updated });
+                                      }}
+                                      className="text-[9px] font-extrabold text-blue-600 hover:underline"
+                                    >
+                                      Inverter Turma
+                                    </button>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 border-t border-slate-50 dark:border-slate-800">
+                                    {classSubs.map(sub => {
+                                      const isChecked = assignedList.some(j => j.classId === cls.id && j.subjectId === sub.id);
+                                      return (
+                                        <label
+                                          key={sub.id}
+                                          className={`flex items-start gap-2 p-1.5 rounded-lg border text-[10px] font-medium transition-all cursor-pointer ${
+                                            isChecked 
+                                              ? 'bg-blue-50/40 dark:bg-blue-950/10 border-blue-100 dark:border-blue-900/40 text-blue-850 dark:text-blue-300' 
+                                              : 'bg-slate-50/30 dark:bg-slate-850/10 border-slate-100 dark:border-slate-800 text-slate-500 hover:bg-slate-50'
+                                          }`}
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={() => toggleJournalAccess(teacher.id, cls.id, sub.id)}
+                                            className="mt-0.5 rounded text-blue-600 focus:ring-blue-500 h-3 w-3"
+                                          />
+                                          <span className="leading-tight truncate" title={sub.name}>{sub.name}</span>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-2">
+                    <Shield className="h-10 w-10 text-slate-300 dark:text-slate-700" />
+                    <p className="text-xs font-extrabold text-slate-600 dark:text-slate-400">Nenhum Docente Selecionado</p>
+                    <p className="text-[10px] text-slate-400 max-w-[240px]">Clique em um professor na lista à esquerda para carregar, visualizar e configurar seus acessos.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* TRANSFERÊNCIA DE ALUNO */}
+          <div className="md:col-span-6 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-4">
+            <div className="flex items-center gap-1.5 pb-2 border-b border-slate-100 dark:border-slate-800">
+              <RefreshCw className="h-5 w-5 text-blue-700 dark:text-blue-400" />
+              <h4 className="font-extrabold text-slate-800 dark:text-white">Transferência de Aluno</h4>
+            </div>
+
+            {transferSuccess && (
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 rounded-xl text-xs flex items-center justify-between border border-emerald-150">
+                <span>⚡ Transferência realizada com sucesso na nuvem!</span>
+                <button type="button" onClick={() => setTransferSuccess(false)} className="text-[10px] font-extrabold hover:underline">Fechar</button>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Pesquisar Aluno</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Digite o nome do aluno para buscar..."
+                    value={transferSearch}
+                    onChange={(e) => setTransferSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 focus:bg-white rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              {transferSearch && (
+                <div className="border border-slate-200 dark:border-slate-750 rounded-xl max-h-[140px] overflow-y-auto bg-slate-50 dark:bg-slate-850 p-1 divide-y divide-slate-100 dark:divide-slate-800">
+                  {users
+                    .filter(u => u.role === UserRole.STUDENT && u.name.toLowerCase().includes(transferSearch.toLowerCase()))
+                    .slice(0, 5)
+                    .map(std => {
+                      const currentClass = classes.find(c => c.id === std.classId);
+                      return (
+                        <button
+                          key={std.id}
+                          type="button"
+                          onClick={() => {
+                            setTransferStudentId(std.id);
+                            setTransferSearch(std.name);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 flex justify-between items-center ${
+                            transferStudentId === std.id ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300' : 'text-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          <span className="font-bold">{std.name}</span>
+                          <span className="text-[10px] text-slate-400">{currentClass?.name || 'Sem turma'}</span>
+                        </button>
+                      );
+                    })}
+                  {users.filter(u => u.role === UserRole.STUDENT && u.name.toLowerCase().includes(transferSearch.toLowerCase())).length === 0 && (
+                    <p className="text-[10px] text-slate-400 italic text-center py-2">Nenhum aluno encontrado.</p>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Selecionar Nova Turma / Curso Destino</label>
+                <select
+                  value={transferClassId}
+                  onChange={(e) => setTransferClassId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                >
+                  <option value="" disabled>Selecione a turma de destino...</option>
+                  {classes.map(cl => {
+                    const co = courses.find(course => course.id === cl.courseId);
+                    return (
+                      <option key={cl.id} value={cl.id}>
+                        {cl.name} ({co?.name || 'Técnico'})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div className="bg-amber-50/50 dark:bg-amber-950/10 p-3 rounded-xl border border-amber-100 dark:border-amber-900/40 text-[10px] text-amber-700 dark:text-amber-400 leading-relaxed space-y-1">
+                <p>⚠️ <strong>Processamento Automático:</strong></p>
+                <ul className="list-disc pl-3.5 space-y-0.5">
+                  <li>Remove o aluno da turma antiga e insere na nova;</li>
+                  <li>Matricula o aluno em todas as disciplinas da nova turma;</li>
+                  <li>Migra notas e frequência de disciplinas com o mesmo código.</li>
+                </ul>
+              </div>
+
+              <button
+                type="button"
+                disabled={!transferStudentId || !transferClassId}
+                onClick={() => {
+                  transferStudent(transferStudentId, transferClassId);
+                  setTransferSuccess(true);
+                  setTransferStudentId('');
+                  setTransferClassId('');
+                  setTransferSearch('');
+                }}
+                className={`w-full py-2 text-xs font-bold rounded-xl transition-all uppercase tracking-wider ${
+                  transferStudentId && transferClassId
+                    ? 'bg-blue-700 hover:bg-blue-800 text-white cursor-pointer'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                Confirmar Transferência
+              </button>
+            </div>
+          </div>
+
+          {/* CONFIGURAÇÃO DE DATAS DE EMISSÃO DE DECLARAÇÃO */}
+          <div className="md:col-span-6 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-4">
+            <div className="flex items-center gap-1.5 pb-2 border-b border-slate-100 dark:border-slate-800">
+              <Calendar className="h-5 w-5 text-blue-700 dark:text-blue-400" />
+              <h4 className="font-extrabold text-slate-800 dark:text-white">Emissão de Declarações (Datas)</h4>
+            </div>
+
+            {configSuccess && (
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 rounded-xl text-xs flex items-center justify-between border border-emerald-150">
+                <span>⚡ Configurações salvas e publicadas na nuvem!</span>
+                <button type="button" onClick={() => setConfigSuccess(false)} className="text-[10px] font-extrabold hover:underline">Fechar</button>
+              </div>
+            )}
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              updateDeclarationConfig('escolaridade', { startDate: escStart, endDate: escEnd });
+              updateDeclarationConfig('ctransp', { startDate: ctrStart, endDate: ctrEnd });
+              setConfigSuccess(true);
+            }} className="space-y-4">
+              <div>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Declaração de Escolaridade</p>
+                <div className="grid grid-cols-2 gap-2 mt-1.5">
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">Data Início</label>
+                    <input
+                      type="date"
+                      required
+                      value={escStart}
+                      onChange={(e) => setEscStart(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 focus:bg-white rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">Data Limite</label>
+                    <input
+                      type="date"
+                      required
+                      value={escEnd}
+                      onChange={(e) => setEscEnd(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 focus:bg-white rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Declaração de SETRANSP Passe</p>
+                <div className="grid grid-cols-2 gap-2 mt-1.5">
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">Data Início</label>
+                    <input
+                      type="date"
+                      required
+                      value={ctrStart}
+                      onChange={(e) => setCtrStart(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 focus:bg-white rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">Data Limite</label>
+                    <input
+                      type="date"
+                      required
+                      value={ctrEnd}
+                      onChange={(e) => setCtrEnd(e.target.value)}
+                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 focus:bg-white rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-xl shadow shadow-blue-600/10 transition-all cursor-pointer uppercase tracking-wider"
+              >
+                Salvar Configurações
+              </button>
+            </form>
+          </div>
+
+          {/* CONTROLE DE DOCUMENTOS PENDENTES */}
+          <div className="md:col-span-12 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-1.5">
+                <FileText className="h-5 w-5 text-blue-700 dark:text-blue-400" />
+                <h4 className="font-extrabold text-slate-800 dark:text-white">Controle de Documentos Obrigatórios dos Alunos</h4>
+              </div>
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Pesquisar aluno..."
+                  value={docSearchQuery}
+                  onChange={(e) => setDocSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white focus:bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-xl">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-850 text-slate-500 text-[10px] uppercase font-bold tracking-wider">
+                    <th className="px-4 py-2.5">Nome do Aluno</th>
+                    <th className="px-4 py-2.5">Matrícula</th>
+                    <th className="px-4 py-2.5">Turma</th>
+                    <th className="px-4 py-2.5">Status Geral</th>
+                    <th className="px-4 py-2.5 text-center">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                  {users
+                    .filter(u => u.role === UserRole.STUDENT && u.name.toLowerCase().includes(docSearchQuery.toLowerCase()))
+                    .map(std => {
+                      const cl = classes.find(c => c.id === std.classId);
+                      const targetCourse = courses.find(co => co.id === cl?.courseId);
+                      const requiredDocs = getRequiredDocsForStudent(targetCourse?.name);
+                      const docs = studentDocuments.filter(d => d.studentId === std.id);
+                      const total = requiredDocs.length;
+                      const delivered = docs.filter(d => d.status === 'ENTREGUE').length;
+                      const sent = docs.filter(d => d.status === 'ENVIADO').length;
+                      
+                      let docLabel = `PENDENTE (${delivered}/${total})`;
+                      let docBadgeColor = 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 border-red-200';
+                      
+                      if (delivered === total) {
+                        docLabel = 'CONCLUÍDO';
+                        docBadgeColor = 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200';
+                      } else if (sent > 0) {
+                        docLabel = `PENDENTE (${delivered}/${total}) - ENVIADO`;
+                        docBadgeColor = 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200';
+                      }
+
+                      return (
+                        <tr key={std.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/25">
+                          <td className="px-4 py-3 font-bold text-slate-800 dark:text-slate-200">{std.name}</td>
+                          <td className="px-4 py-3 text-slate-500 font-mono text-[11px]">{std.username}</td>
+                          <td className="px-4 py-3 text-slate-500">{cl?.name || 'Sem turma'}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 text-[9px] font-extrabold rounded-full border ${docBadgeColor}`}>
+                              {docLabel}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedDocStudentId(std.id)}
+                              className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/20 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[10px] font-bold rounded-lg transition-all"
+                            >
+                              Analisar
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Tab: IMPORTADOR DE PLANILHAS */}
+      {activeTab === 'imp' && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <SpreadsheetImporter />
+        </motion.div>
+      )}
+
+      {/* Tab: MENSAGENS E AVISOS */}
+      {activeTab === 'msg' && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-3xl shadow-sm max-w-2xl mx-auto"
+        >
+          <div className="flex items-center gap-1.5 mb-4 text-slate-800 dark:text-white">
+            <BellRing className="h-5 w-5 text-blue-700 dark:text-blue-400" />
+            <h4 className="font-bold">Comunicados e Avisos Coletivos</h4>
+          </div>
+
+          {messageSuccess && (
+            <div className="p-4 mb-4 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 rounded-xl text-xs sm:text-sm flex items-center gap-2 border border-emerald-150">
+              <CheckCircle2 className="h-4 w-4" />
+              <span>{messageSuccess}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSendMessage} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">Canal do Destinatário</label>
+              <select
+                value={messageRecipient}
+                onChange={(e) => setMessageRecipient(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+              >
+                <option value="ALL_TEACHERS">Todos os Professores (Global)</option>
+                {users.filter(u => u.role !== UserRole.ADMIN).map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.role === UserRole.TEACHER ? 'Professor' : 'Aluno'}: {u.name} ({u.enrollment})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">Mensagem Acadêmica</label>
+              <textarea
+                required={!attachmentUrl}
+                rows={4}
+                value={messageContent}
+                onChange={(e) => setMessageContent(e.target.value)}
+                placeholder={attachmentUrl ? "Adicione um comentário opcional para acompanhar o arquivo/áudio..." : "Ex: Caros docentes, os prazos de lançamento para as avaliações S2 do Técnico em Radiologia e Instrumentação Cirúrgica foram estendidos..."}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:bg-white rounded-xl outline-none text-xs text-slate-800 dark:text-white placeholder-slate-400"
+              ></textarea>
+            </div>
+
+            {/* Attachment and Audio Recording Actions */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-150 dark:border-slate-800 space-y-3">
+              <span className="block text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Anexar Mídia ou Gravar Áudio
+              </span>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Record Audio Button */}
+                {!isRecording ? (
+                  <button
+                    type="button"
+                    onClick={startRecording}
+                    disabled={!!attachmentUrl}
+                    className="px-3 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/20 dark:hover:bg-rose-950/30 text-rose-700 dark:text-rose-400 disabled:opacity-50 text-xs font-black rounded-xl border border-rose-100 dark:border-rose-900/30 flex items-center gap-1.5 cursor-pointer transition-all"
+                  >
+                    <Mic className="h-4 w-4" /> Gravar Áudio
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 bg-rose-500/10 px-3 py-1.5 rounded-xl border border-rose-500/30">
+                    <span className="h-2 w-2 rounded-full bg-rose-500 animate-ping"></span>
+                    <span className="text-rose-700 dark:text-rose-400 text-xs font-black font-mono">
+                      GRAVANDO: {formatDuration(recordingDuration)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={stopRecording}
+                      className="p-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-all"
+                      title="Salvar Gravação"
+                    >
+                      <Square className="h-3 w-3 fill-white" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelRecording}
+                      className="p-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition-all"
+                      title="Cancelar Gravação"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Upload File Button */}
+                <label className={`px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-black rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 cursor-pointer transition-all ${attachmentUrl || isRecording ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <Paperclip className="h-4 w-4" /> Enviar PDF / Imagem / Áudio
+                  <input
+                    type="file"
+                    accept="application/pdf,image/png,image/jpeg,image/jpg,audio/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                    disabled={!!attachmentUrl || isRecording}
+                  />
+                </label>
+              </div>
+
+              {/* Attachment Preview */}
+              {attachmentUrl && (
+                <div className="p-3 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-xl flex items-center justify-between gap-3 animate-fade-in">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="p-2 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-lg">
+                      {attachmentType === 'pdf' ? (
+                        <FileText className="h-4 w-4" />
+                      ) : attachmentType === 'image' ? (
+                        <ImageIcon className="h-4 w-4" />
+                      ) : (
+                        <Mic className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div className="text-left min-w-0">
+                      <p className="text-xs font-black text-slate-800 dark:text-slate-200 truncate max-w-[250px] sm:max-w-[400px]">
+                        {attachmentName}
+                      </p>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                        {attachmentType === 'pdf' ? 'Documento PDF' : attachmentType === 'image' ? 'Imagem JPG/PNG' : 'Áudio Gravado/Enviado'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {attachmentType === 'audio' && (
+                      <audio src={attachmentUrl} controls className="h-7 w-[160px] sm:w-[200px]" />
+                    )}
+                    {attachmentType === 'image' && (
+                      <img src={attachmentUrl} alt="Anexo" referrerPolicy="no-referrer" className="h-8 w-8 rounded-lg object-cover border border-slate-200" />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAttachmentUrl(null);
+                        setAttachmentType(null);
+                        setAttachmentName(null);
+                      }}
+                      className="p-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 rounded-lg border border-rose-100 dark:border-rose-900/20 cursor-pointer"
+                      title="Remover anexo"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              id="send-message-submit-btn"
+              disabled={isRecording}
+              className="w-full py-2.5 bg-blue-700 hover:bg-blue-800 disabled:bg-slate-200 disabled:dark:bg-slate-800 text-white disabled:text-slate-400 text-xs font-extrabold rounded-xl shadow shadow-blue-600/15 flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Send className="h-4 w-4" /> Transmitir Comunicado
+            </button>
+          </form>
+
+          {/* Histórico de Comunicados Transmitidos */}
+          <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 space-y-4">
+            <div className="flex items-center gap-2 text-slate-800 dark:text-white">
+              <History className="h-4 w-4 text-blue-700 dark:text-blue-400" />
+              <h5 className="font-bold text-sm">Histórico de Comunicados Transmitidos</h5>
+            </div>
+
+            <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+              {messages.length > 0 ? (
+                messages.map(msg => {
+                  const recipientUser = users.find(u => u.id === msg.recipientId);
+                  const recipientName = msg.recipientId === 'ALL_TEACHERS' 
+                    ? 'Todos os Professores (Global)' 
+                    : recipientUser 
+                      ? `${recipientUser.role === UserRole.TEACHER ? 'Professor' : 'Aluno'}: ${recipientUser.name} (${recipientUser.enrollment || 'Sem matrícula'})` 
+                      : msg.recipientId;
+
+                  return (
+                    <div key={msg.id} className="p-3.5 bg-slate-50/50 dark:bg-slate-850/30 border border-slate-200/50 dark:border-slate-800/50 rounded-2xl space-y-2.5 text-xs">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Destinatário:</span>
+                          <p className="font-black text-slate-850 dark:text-slate-200">{recipientName}</p>
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-400 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 px-2 py-0.5 rounded-lg font-mono">
+                          {new Date(msg.date).toLocaleDateString('pt-BR')} {new Date(msg.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      
+                      {msg.content && (
+                        <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 leading-relaxed text-[11px] font-medium whitespace-pre-wrap">
+                          {msg.content}
+                        </div>
+                      )}
+
+                      {msg.attachmentUrl && (
+                        <div className="p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="p-1.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-lg shrink-0">
+                              {msg.attachmentType === 'pdf' ? (
+                                <FileText className="h-3.5 w-3.5" />
+                              ) : msg.attachmentType === 'image' ? (
+                                <ImageIcon className="h-3.5 w-3.5" />
+                              ) : (
+                                <Mic className="h-3.5 w-3.5" />
+                              )}
+                            </div>
+                            <span className="font-extrabold text-[11px] text-slate-700 dark:text-slate-300 truncate max-w-[180px] sm:max-w-[280px]">
+                              {msg.attachmentName}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0 justify-end w-full sm:w-auto">
+                            {msg.attachmentType === 'audio' && (
+                              <audio src={msg.attachmentUrl} controls className="h-7 w-[160px] sm:w-[180px]" />
+                            )}
+                            {msg.attachmentType === 'image' && (
+                              <img src={msg.attachmentUrl} alt="Preview" referrerPolicy="no-referrer" className="h-8 w-8 rounded object-cover border border-slate-200" />
+                            )}
+                            <a
+                              href={msg.attachmentUrl}
+                              download={msg.attachmentName || 'arquivo'}
+                              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black rounded-lg flex items-center gap-1 cursor-pointer transition-all select-none"
+                            >
+                              <Download className="h-3 w-3" /> Baixar
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-xs text-slate-400 py-6 text-center italic">Nenhum comunicado transmitido ainda.</p>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Tab: BACKUP E SEGURANÇA (Central de Defesa e Redundância) */}
+      {activeTab === 'sec' && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-6"
+        >
+          {secStatusMsg && (
+            <div className={`p-4 rounded-xl text-xs sm:text-sm flex items-center gap-2 border ${
+              secStatusMsg.success 
+                ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 border-emerald-150 dark:border-emerald-900/30' 
+                : 'bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-400 border-red-150 dark:border-red-900/30'
+            }`}>
+              {secStatusMsg.success ? <CheckCircle2 className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
+              <span>{secStatusMsg.text}</span>
+            </div>
+          )}
+
+          {/* Indicators row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 select-none">
+            {/* Shield Check Indicator */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-3xl shadow-sm flex items-start gap-4">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl text-emerald-600 dark:text-emerald-400">
+                <ShieldCheck className="h-6 w-6" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Firewall Ativo</h4>
+                <p className="text-sm font-black text-slate-900 dark:text-white">Central de Defesa</p>
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 bg-emerald-500 rounded-full animate-ping inline-block"></span>
+                  Proteção Integrada Ativa
+                </span>
+              </div>
+            </div>
+
+            {/* Cloud backup Sync Status */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-3xl shadow-sm flex items-start justify-between">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/40 rounded-2xl text-blue-600 dark:text-blue-400">
+                  <UploadCloud className="h-6 w-6" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Nuvem Sincronizada</h4>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">Backup Automático</p>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 block">
+                    {lastCloudBackupTime 
+                      ? `Último: ${new Date(lastCloudBackupTime).toLocaleTimeString('pt-BR')}` 
+                      : 'Aguardando primeiro ciclo (45s)'}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloudSyncTrigger}
+                disabled={syncingCloud}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 dark:text-slate-300 transition-all border border-slate-100 dark:border-slate-850 flex items-center justify-center disabled:opacity-50"
+                title="Sincronizar Nuvem Agora"
+              >
+                <RefreshCw className={`h-4 w-4 ${syncingCloud ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
+            {/* Lockout map and quick reset to easily test security block rules */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-3xl shadow-sm flex items-start gap-4 justify-between">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 rounded-2xl text-amber-600 dark:text-amber-400">
+                  <Lock className="h-6 w-6" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Rate Limiting</h4>
+                  <p className="text-sm font-black text-slate-900 dark:text-white">Brute-Force Guard</p>
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-extrabold">
+                    {Object.values(failedAttemptsMap || {}).filter((a: any) => a.count > 0).length} Usuário(s) Monitorado(s)
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  resetFailedAttempts('admin');
+                  resetFailedAttempts('administracao@lynxedu.com.br');
+                  setSecStatusMsg({ success: true, text: 'Contadores de segurança redefinidos com sucesso para testes de login!' });
+                  setTimeout(() => setSecStatusMsg(null), 3000);
+                }}
+                className="px-2.5 py-1 text-[10px] font-black bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-950/60 border border-amber-200/50 text-amber-700 dark:text-amber-400 rounded-lg transition-all"
+                title="Redefinir contadores para testar login livremente"
+              >
+                Limpar Bloqueios
+              </button>
+            </div>
+          </div>
+
+          {/* Interactive Backup and Security Logs Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* Column left: Import/Export panel */}
+            <div className="lg:col-span-5 space-y-6">
+              
+              {/* Box 1: Local backup toolbelt */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-4">
+                <div className="flex items-center gap-2 text-slate-800 dark:text-white select-none">
+                  <Database className="h-5 w-5 text-blue-700 dark:text-blue-400" />
+                  <h4 className="font-bold text-sm">Backup Local de Segurança</h4>
+                </div>
+                <p className="text-xs text-slate-400 dark:text-slate-500 leading-relaxed">
+                  Gere um arquivo estruturado criptografado contendo todos os dados escolares atuais. Guarde o arquivo como salvaguarda local offline.
+                </p>
+
+                <button
+                  type="button"
+                  id="local-backup-export-btn"
+                  onClick={triggerLocalBackup}
+                  className="w-full py-2.5 bg-slate-900 hover:bg-black dark:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="h-4 w-4" /> Exportar Backup (JSON)
+                </button>
+              </div>
+
+              {/* Box 2: Drag and drop import zone */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-4">
+                <div className="flex items-center gap-2 text-slate-800 dark:text-white select-none">
+                  <Upload className="h-5 w-5 text-indigo-700 dark:text-indigo-400" />
+                  <h4 className="font-bold text-sm">Restaurar do Arquivo Local</h4>
+                </div>
+                <p className="text-xs text-slate-400 dark:text-slate-500 leading-relaxed">
+                  Arraste ou selecione um backup homologado para restaurar o portal ao estado salvo. O sistema validará a assinatura de integridade antes da importação.
+                </p>
+
+                {/* Drag and Drop Zone */}
+                <div
+                  onDragEnter={handleDrag}
+                  onDragOver={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
+                    dragActive 
+                      ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20' 
+                      : 'border-slate-200 dark:border-slate-850 hover:border-slate-350 dark:hover:border-slate-700'
+                  }`}
+                >
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileRestoreChange}
+                    accept=".json"
+                    className="hidden"
+                  />
+                  <Database className="h-8 w-8 text-slate-400 dark:text-slate-600 mx-auto mb-2" />
+                  <p className="text-[11px] font-extrabold text-slate-600 dark:text-slate-300">
+                    Arraste o arquivo .json aqui ou clique para selecionar
+                  </p>
+                  <span className="text-[9px] text-slate-400 block mt-1">
+                    (Válido apenas para backups gerados neste portal)
+                  </span>
+                </div>
+              </div>
+
+              {/* Box 3: Emergency Cloud Restore */}
+              <div className="bg-slate-950 dark:bg-slate-900 border border-slate-800 dark:border-slate-850 text-white p-6 rounded-3xl shadow-sm space-y-4">
+                <div className="flex items-center gap-2 select-none">
+                  <Server className="h-5 w-5 text-emerald-400" />
+                  <h4 className="font-bold text-sm text-white">Restauração da Nuvem (AWS-Replica)</h4>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Em caso de falha de dispositivo, você pode restaurar o banco de dados diretamente a partir do último nó replicado em tempo real em nossa infraestrutura de nuvem.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCloudRestoreTrigger}
+                  disabled={restoringCloud || syncingCloud}
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-lg shadow-emerald-950/50 transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-4 w-4 ${restoringCloud ? 'animate-spin' : ''}`} /> {restoringCloud ? 'Sincronizando...' : 'Restaurar Última Cópia da Nuvem'}
+                </button>
+              </div>
+
+              {/* Box 4: Firebase Storage Scheduled Backups & Export */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-4">
+                <div className="flex items-center gap-2 text-slate-800 dark:text-white select-none">
+                  <UploadCloud className="h-5 w-5 text-blue-700 dark:text-blue-400" />
+                  <h4 className="font-bold text-sm">Backup em Nuvem (Firebase Storage)</h4>
+                </div>
+                
+                <p className="text-xs text-slate-400 dark:text-slate-500 leading-relaxed">
+                  Configure agendamento automático para exportar snapshots periódicos do portal para o Firebase Storage ou realize exportações síncronas manuais.
+                </p>
+
+                {/* Schedule Configuration Form */}
+                <div className="p-3 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Automático Ativo</label>
+                    <button
+                      type="button"
+                      onClick={() => updateBackupSchedule({ enabled: !backupSchedule.enabled })}
+                      className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        backupSchedule.enabled ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          backupSchedule.enabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Frequência</label>
+                      <select
+                        value={backupSchedule.frequency}
+                        onChange={(e) => updateBackupSchedule({ frequency: e.target.value as any })}
+                        className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-800 dark:text-white outline-none"
+                      >
+                        <option value="manual">Manual / Desativado</option>
+                        <option value="daily">Diário</option>
+                        <option value="weekly">Semanal</option>
+                        <option value="monthly">Mensal</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Horário de Pico</label>
+                      <input
+                        type="time"
+                        value={backupSchedule.hour}
+                        onChange={(e) => updateBackupSchedule({ hour: e.target.value })}
+                        className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-800 dark:text-white outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {backupSchedule.enabled && backupSchedule.frequency !== 'manual' && backupSchedule.nextBackupTime && (
+                    <div className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">
+                      Próximo ciclo: {new Date(backupSchedule.nextBackupTime).toLocaleString('pt-BR')}
+                    </div>
+                  )}
+                </div>
+
+                {/* Manual Trigger Button */}
+                <div className="pt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setExportingStorage(true);
+                      const url = await triggerStorageBackup();
+                      setExportingStorage(false);
+                      if (url) {
+                        setStorageSuccessMsg('Cópia de segurança exportada com sucesso!');
+                        setTimeout(() => setStorageSuccessMsg(''), 3000);
+                      } else {
+                        setStorageSuccessMsg('Erro ao tentar salvar backup.');
+                        setTimeout(() => setStorageSuccessMsg(''), 3000);
+                      }
+                    }}
+                    disabled={exportingStorage}
+                    className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <UploadCloud className={`h-3.5 w-3.5 ${exportingStorage ? 'animate-spin' : ''}`} />
+                    {exportingStorage ? 'Exportando...' : 'Exportar Snap Agora'}
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setRefreshingStorageList(true);
+                      await fetchStorageBackups();
+                      setRefreshingStorageList(false);
+                    }}
+                    disabled={refreshingStorageList}
+                    className="p-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl transition-all flex items-center justify-center text-slate-500 dark:text-slate-400 cursor-pointer"
+                    title="Atualizar lista de backups"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${refreshingStorageList ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+
+                {storageSuccessMsg && (
+                  <p className="text-[10px] text-center font-bold text-emerald-600 dark:text-emerald-400 animate-pulse">{storageSuccessMsg}</p>
+                )}
+
+                {/* Stored Snapshots List */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h5 className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Histórico no Storage ({storageBackups.length})</h5>
+                  </div>
+
+                  <div className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-800 max-h-[220px] overflow-y-auto bg-slate-50/50 dark:bg-slate-900/50">
+                    {isLoadingStorageBackups ? (
+                      <div className="p-6 text-center text-xs text-slate-400 italic">
+                        <RefreshCw className="h-4 w-4 animate-spin mx-auto mb-1 text-blue-500" />
+                        Carregando backups do Storage...
+                      </div>
+                    ) : storageBackups.length > 0 ? (
+                      storageBackups.map((file) => (
+                        <div key={file.name} className="p-2.5 text-[11px] flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-800/40 transition-colors">
+                          <div className="space-y-0.5 truncate max-w-[160px]">
+                            <p className="font-semibold text-slate-700 dark:text-slate-300 truncate font-mono text-[10px]" title={file.name}>
+                              {file.name}
+                            </p>
+                            <span className="text-[9px] text-slate-400 block">
+                              {(file.size / 1024).toFixed(1)} KB • {new Date(file.timeCreated).toLocaleDateString('pt-BR')} {new Date(file.timeCreated).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-1">
+                            <a
+                              href={file.url}
+                              download={file.name}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+                              title="Download JSON"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </a>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (window.confirm(`Deseja restaurar o portal inteiramente a partir do snapshot: ${file.name}?`)) {
+                                  try {
+                                    setRestoringCloud(true);
+                                    const response = await fetch(file.url);
+                                    const text = await response.text();
+                                    const result = restoreFromBackup(text);
+                                    if (result.success) {
+                                      alert('Restauração de snapshot do Firebase Storage bem-sucedida!');
+                                    } else {
+                                      alert(`Falha na restauração: ${result.message}`);
+                                    }
+                                  } catch (err) {
+                                    alert(`Erro de conexão ao restaurar do Storage: ${(err as Error).message}`);
+                                  } finally {
+                                    setRestoringCloud(false);
+                                  }
+                                }
+                              }}
+                              className="p-1 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+                              title="Restaurar Snapshot"
+                            >
+                              <RefreshCw className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (window.confirm(`Tem certeza que deseja excluir permanentemente o backup ${file.name} do Firebase Storage?`)) {
+                                  await deleteStorageBackup(file.name);
+                                }
+                              }}
+                              className="p-1 text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+                              title="Excluir Backup"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-6 text-center text-slate-400 text-xs italic">
+                        Nenhum snapshot encontrado no Firebase Storage.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* Column right: Security Audit Logs */}
+            <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-4">
+              <div className="flex items-center justify-between select-none">
+                <div className="flex items-center gap-2 text-slate-800 dark:text-white">
+                  <Shield className="h-5 w-5 text-red-600" />
+                  <h4 className="font-bold text-sm">Registro de Auditoria de Segurança (Logs)</h4>
+                </div>
+                <span className="text-[10px] font-black uppercase bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400 px-2 py-0.5 rounded-md">
+                  SIEM Real-Time
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 dark:text-slate-500 leading-relaxed">
+                Logs de auditoria e segurança em conformidade com as diretrizes da LGPD, registrando eventos de acessos, autenticação de diários, bloqueios e backups.
+              </p>
+
+              <div className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-800 max-h-[480px] overflow-y-auto">
+                {securityLogs && securityLogs.length > 0 ? (
+                  securityLogs.map((log: any) => (
+                    <div key={log.id} className="p-3 text-[11px] flex items-start gap-3 hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-colors">
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase mt-0.5 flex-shrink-0 ${
+                        log.severity === 'high' 
+                          ? 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-400' 
+                          : log.severity === 'medium'
+                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400'
+                            : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400'
+                      }`}>
+                        {log.eventType}
+                      </span>
+                      <div className="flex-1 space-y-1">
+                        <p className="font-semibold text-slate-700 dark:text-slate-300 leading-relaxed">{log.details}</p>
+                        <div className="flex items-center gap-3 text-[10px] text-slate-400 dark:text-slate-500">
+                          <span>IP: {log.ipAddress}</span>
+                          <span>•</span>
+                          <span>{new Date(log.timestamp).toLocaleString('pt-BR')}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-6 text-center text-slate-400 text-xs">
+                    Nenhum evento registrado nos logs de auditoria.
+                  </div>
+                )}
+              </div>
+            </div>
+
+          </div>
+        </motion.div>
+      )}
+
+      {/* Tab: BOLETIM DO ALUNO COMPLETO (Busca, Seleção de Sala e Visualização Detalhada) */}
+      {activeTab === 'boletins' && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-6"
+        >
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-150 dark:border-slate-800 shadow-sm">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                <GraduationCap className="h-6 w-6" />
+                <h3 className="font-extrabold text-lg">Boletim Escolar Completo</h3>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Visualize, pesquise e emita boletins individuais ou de turmas inteiras em formato oficial.
+              </p>
+            </div>
+            {/* Quick Actions */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedBoletimClassId) {
+                    setPrintDoc({ type: 'boletim_sala', classId: selectedBoletimClassId });
+                  } else {
+                    alert('Por favor, selecione uma turma.');
+                  }
+                }}
+                disabled={!selectedBoletimClassId}
+                className="flex items-center gap-1.5 px-4 py-2 bg-blue-700 hover:bg-blue-800 disabled:opacity-40 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-600/10 transition-all cursor-pointer"
+              >
+                <Printer className="h-4 w-4" /> Imprimir Boletins da Turma
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column: Filtros & Busca */}
+            <div className="lg:col-span-4 space-y-4">
+              
+              {/* Search Card */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-3xl shadow-sm space-y-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Localizar Aluno (Matrícula ou Nome)</p>
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Pesquisar por Matrícula ou Nome..."
+                    value={boletimSearch}
+                    onChange={(e) => setBoletimSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white focus:bg-white placeholder-slate-400"
+                  />
+                </div>
+
+                {/* Instant search results */}
+                {boletimSearch.trim() !== '' && (
+                  <div className="border border-slate-150 dark:border-slate-800 rounded-xl max-h-[200px] overflow-y-auto bg-slate-50 dark:bg-slate-950 divide-y divide-slate-150 dark:divide-slate-850">
+                    {(() => {
+                      const matches = users.filter(u => u.role === UserRole.STUDENT && (
+                        u.name.toLowerCase().includes(boletimSearch.toLowerCase()) || 
+                        (u.enrollment && u.enrollment.toLowerCase().includes(boletimSearch.toLowerCase()))
+                      ));
+                      if (matches.length === 0) {
+                        return <p className="p-3 text-[11px] text-slate-400 italic text-center">Nenhum aluno encontrado</p>;
+                      }
+                      return matches.map(std => {
+                        // Find class
+                        const stdGrade = grades.find(g => g.studentId === std.id);
+                        const stdClass = stdGrade ? classes.find(c => c.id === stdGrade.classId) : null;
+                        return (
+                          <button
+                            key={std.id}
+                            type="button"
+                            onClick={() => {
+                              if (stdClass) {
+                                setSelectedBoletimClassId(stdClass.id);
+                              }
+                              setSelectedBoletimStudentId(std.id);
+                              setBoletimSearch(''); // clear search
+                            }}
+                            className="w-full text-left p-2.5 hover:bg-blue-50 dark:hover:bg-blue-950/20 text-xs transition-all flex flex-col gap-0.5"
+                          >
+                            <span className="font-bold text-slate-800 dark:text-slate-200">{std.name}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              Matrícula: {std.enrollment || 'N/A'} {stdClass ? `• Turma: ${stdClass.name}` : ''}
+                            </span>
+                          </button>
+                        );
+                      });
+                    })()}
+                  </div>
+                )}
+              </div>
+
+              {/* Class & Student Selector Card */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-3xl shadow-sm space-y-4">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filtro por Turma</p>
+                
+                {/* Class Select */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Selecione a Turma</label>
+                  <select
+                    value={selectedBoletimClassId}
+                    onChange={(e) => {
+                      setSelectedBoletimClassId(e.target.value);
+                      setSelectedBoletimStudentId(''); // reset student
+                    }}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white"
+                  >
+                    <option value="">Selecione uma Turma...</option>
+                    {activePeriodClasses.map(cls => (
+                      <option key={cls.id} value={cls.id}>{cls.name} ({cls.code})</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Student Select */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Selecione o Aluno</label>
+                  <select
+                    value={selectedBoletimStudentId}
+                    onChange={(e) => setSelectedBoletimStudentId(e.target.value)}
+                    disabled={!selectedBoletimClassId}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white disabled:opacity-40"
+                  >
+                    <option value="">Selecione um Aluno...</option>
+                    {users
+                      .filter(u => u.role === UserRole.STUDENT && (u.classId === selectedBoletimClassId || grades.some(g => g.studentId === u.id && g.classId === selectedBoletimClassId)))
+                      .map(std => (
+                        <option key={std.id} value={std.id}>{std.name} ({std.enrollment || 'Sem matrícula'})</option>
+                      ))}
+                  </select>
+                </div>
+
+                {/* Interactive list of classroom students */}
+                {selectedBoletimClassId && (
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                      Alunos da Turma ({users.filter(u => u.role === UserRole.STUDENT && (u.classId === selectedBoletimClassId || grades.some(g => g.studentId === u.id && g.classId === selectedBoletimClassId))).length})
+                    </p>
+                    <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+                      {users
+                        .filter(u => u.role === UserRole.STUDENT && (u.classId === selectedBoletimClassId || grades.some(g => g.studentId === u.id && g.classId === selectedBoletimClassId)))
+                        .map(std => {
+                          const isSelected = selectedBoletimStudentId === std.id;
+                          return (
+                            <button
+                              key={std.id}
+                              type="button"
+                              onClick={() => setSelectedBoletimStudentId(std.id)}
+                              className={`w-full text-left p-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-between ${
+                                isSelected 
+                                  ? 'bg-blue-600 text-white shadow-sm' 
+                                  : 'bg-slate-50 dark:bg-slate-850 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              <span className="truncate">{std.name}</span>
+                              <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${
+                                isSelected 
+                                  ? 'bg-blue-700 text-blue-100' 
+                                  : 'bg-slate-200 dark:bg-slate-750 text-slate-600 dark:text-slate-400'
+                              }`}>
+                                {std.enrollment || 'N/A'}
+                              </span>
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* Right Column: Boletim Preview Dashboard */}
+            <div className="lg:col-span-8">
+              {(() => {
+                const student = users.find(u => u.id === selectedBoletimStudentId);
+                const sClass = classes.find(c => c.id === selectedBoletimClassId);
+                
+                if (!student || !sClass) {
+                  return (
+                    <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-12 rounded-3xl shadow-sm text-center flex flex-col items-center justify-center h-full min-h-[350px]">
+                      <div className="p-4 bg-blue-50 dark:bg-blue-950/40 rounded-full text-blue-600 dark:text-blue-400 mb-4">
+                        <GraduationCap className="h-8 w-8" />
+                      </div>
+                      <h4 className="font-bold text-slate-800 dark:text-white">Nenhum Aluno Selecionado</h4>
+                      <p className="text-xs text-slate-400 max-w-sm mt-1 leading-relaxed">
+                        Escolha uma turma e selecione o aluno ao lado ou use a busca direta por nome ou matrícula para visualizar a Ficha de Aproveitamento Individual.
+                      </p>
+                    </div>
+                  );
+                }
+
+                const sCourse = courses.find(co => co.id === sClass.courseId);
+                const classSubs = subjects.filter(s => s.courseId === sClass.courseId && s.module === sClass.module);
+
+                // Compute student KPI metrics
+                let totalWorkload = 0;
+                let studentTotalAbsences = 0;
+                let gradeCount = 0;
+                let sumGrades = 0;
+                let failsCount = 0;
+
+                const subjectsSummary = classSubs.map(sub => {
+                  const score = grades.find(g => g.studentId === student.id && g.subjectId === sub.id && g.classId === sClass.id);
+                  const absences = getStudentAbsences(student.id, sub.id);
+                  
+                  totalWorkload += sub.workload;
+                  studentTotalAbsences += absences.total;
+                  
+                  if (score) {
+                    gradeCount++;
+                    sumGrades += score.pf;
+                    if (score.result === 'NÃO APTO' || score.result === 'F. NOTA') {
+                      failsCount++;
+                    }
+                  }
+
+                  return {
+                    subject: sub,
+                    score,
+                    absences
+                  };
+                });
+
+                const averageGrade = gradeCount > 0 ? sumGrades / gradeCount : 0;
+                const averageFrequency = totalWorkload > 0 ? Math.max(0, ((totalWorkload - studentTotalAbsences) / totalWorkload) * 100) : 100;
+                const overallResult = averageFrequency < 75 ? 'RETIDO POR FALTAS' : (failsCount > 0 ? 'PENDENTE/RETIDO' : 'APTO');
+
+                return (
+                  <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden animate-fade-in space-y-6 p-6">
+                    {/* Student Info Bar */}
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                      <div>
+                        <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest block font-mono mb-1">
+                          Ficha de Aproveitamento Individual • Período {currentPeriod}
+                        </span>
+                        <h4 className="font-black text-slate-900 dark:text-white text-lg sm:text-xl leading-none">{student.name}</h4>
+                        <p className="text-xs text-slate-400 mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="font-semibold text-slate-500 dark:text-slate-300">Curso:</span> {sCourse?.name || 'N/A'}
+                          <span>•</span>
+                          <span className="font-semibold text-slate-500 dark:text-slate-300">Turma:</span> {sClass.name}
+                        </p>
+                      </div>
+
+                      <div className="flex sm:flex-col items-start sm:items-end gap-3 sm:gap-1.5">
+                        <div className="text-left sm:text-right">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase block tracking-wider">Matrícula</span>
+                          <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">{student.enrollment || 'N/A'}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPrintDoc({ type: 'boletim', studentId: student.id, classId: sClass.id });
+                          }}
+                          className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-800 dark:text-slate-200 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ml-auto cursor-pointer border border-slate-200/40 dark:border-slate-700/40"
+                        >
+                          <Printer className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" /> Imprimir Boletim
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* KPI Widgets */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 select-none">
+                      {/* Media Geral */}
+                      <div className="p-4 bg-slate-50 dark:bg-slate-850/40 border border-slate-150/50 dark:border-slate-800/50 rounded-2xl">
+                        <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Média Geral</span>
+                        <span className="text-xl font-black text-slate-800 dark:text-white font-mono">{averageGrade.toFixed(1)}</span>
+                        <span className="text-[9px] text-slate-400 dark:text-slate-500 block mt-0.5">Pontos acumulados</span>
+                      </div>
+
+                      {/* Total Faltas */}
+                      <div className="p-4 bg-slate-50 dark:bg-slate-850/40 border border-slate-150/50 dark:border-slate-800/50 rounded-2xl">
+                        <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Total de Faltas</span>
+                        <span className="text-xl font-black text-slate-800 dark:text-white font-mono">{studentTotalAbsences}</span>
+                        <span className="text-[9px] text-slate-400 dark:text-slate-500 block mt-0.5">Aulas não assistidas</span>
+                      </div>
+
+                      {/* Frequencia Média */}
+                      <div className="p-4 bg-slate-50 dark:bg-slate-850/40 border border-slate-150/50 dark:border-slate-800/50 rounded-2xl">
+                        <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Frequência</span>
+                        <span className={`text-xl font-black font-mono ${averageFrequency < 75 ? 'text-red-500' : 'text-emerald-500'}`}>
+                          {averageFrequency.toFixed(1)}%
+                        </span>
+                        <span className="text-[9px] text-slate-400 dark:text-slate-500 block mt-0.5">Mínimo exigido: 75%</span>
+                      </div>
+
+                      {/* Situação Final */}
+                      <div className="p-4 bg-slate-50 dark:bg-slate-850/40 border border-slate-150/50 dark:border-slate-800/50 rounded-2xl">
+                        <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1">Situação Geral</span>
+                        <span className={`px-2 py-0.5 text-[10px] font-black rounded uppercase tracking-wider block text-center mt-1.5 ${
+                          overallResult === 'APTO' 
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/45 dark:text-emerald-400' 
+                            : overallResult === 'RETIDO POR FALTAS'
+                            ? 'bg-red-100 text-red-800 dark:bg-red-950/45 dark:text-red-400 font-extrabold'
+                            : 'bg-amber-100 text-amber-800 dark:bg-amber-950/45 dark:text-amber-400'
+                        }`}>
+                          {overallResult}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Grade Matrix Preview Table */}
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Aproveitamento por Disciplina</p>
+                      <div className="overflow-x-auto border border-slate-150 dark:border-slate-800 rounded-2xl">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-50 dark:bg-slate-850 text-slate-500 font-bold border-b border-slate-150 dark:border-slate-850">
+                            <tr>
+                              <th className="p-3">Disciplina</th>
+                              <th className="p-3 text-center">S1</th>
+                              <th className="p-3 text-center">S2</th>
+                              <th className="p-3 text-center">AFC</th>
+                              <th className="p-3 text-center">PF</th>
+                              <th className="p-3 text-center">Faltas</th>
+                              <th className="p-3 text-center">Freq.</th>
+                              <th className="p-3 text-center">Conceito</th>
+                              <th className="p-3 text-center">Resultado</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-150 dark:divide-slate-850">
+                            {subjectsSummary.map(({ subject, score, absences }) => {
+                              const s1Val = score?.s1 ?? 0;
+                              const s2Val = score?.s2 ?? 0;
+                              const afcVal = score?.afc ?? null;
+                              const pfVal = score?.pf ?? 0;
+                              const concept = score?.concept ?? 'D';
+                              const result = score?.result ?? 'Pendente';
+
+                              return (
+                                <tr key={subject.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/20 transition-all font-medium">
+                                  <td className="p-3">
+                                    <p className="font-bold text-slate-800 dark:text-slate-200">{subject.name}</p>
+                                    <p className="text-[10px] text-slate-400 font-mono">Carga Horária: {subject.workload}H</p>
+                                  </td>
+                                  <td className="p-3 text-center font-mono" title={`AV1: ${score?.av1 ?? '-'} | AV2: ${score?.av2 ?? '-'} | AV3: ${score?.av3 ?? '-'} ${score?.recS1 !== null ? `| REC: ${score?.recS1}` : ''}`}>
+                                    <span className="cursor-help border-b border-dotted border-slate-400">{s1Val}</span>
+                                  </td>
+                                  <td className="p-3 text-center font-mono" title={`AV4: ${score?.av4 ?? '-'} | AV5: ${score?.av5 ?? '-'} | AV6: ${score?.av6 ?? '-'} ${score?.recS2 !== null ? `| REC: ${score?.recS2}` : ''}`}>
+                                    <span className="cursor-help border-b border-dotted border-slate-400">{s2Val}</span>
+                                  </td>
+                                  <td className="p-3 text-center font-mono">{afcVal !== null ? afcVal : '-'}</td>
+                                  <td className="p-3 text-center font-bold font-mono text-slate-900 dark:text-white">{pfVal}</td>
+                                  <td className="p-3 text-center font-mono">{absences.total}</td>
+                                  <td className={`p-3 text-center font-bold font-mono ${absences.frequency < 75 ? 'text-red-500' : 'text-slate-600 dark:text-slate-400'}`}>
+                                    {absences.frequency.toFixed(0)}%
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-black font-mono ${
+                                      concept === 'A' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400' :
+                                      concept === 'B' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400' :
+                                      concept === 'C' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400' :
+                                      'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400'
+                                    }`}>
+                                      {concept}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-center">
+                                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${
+                                      result === 'APTO' 
+                                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' 
+                                        : result === 'F. NOTA' 
+                                        ? 'bg-red-50 text-red-750 dark:bg-red-950/45 dark:text-red-400' 
+                                        : result === 'NÃO APTO' 
+                                        ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/45 dark:text-amber-400'
+                                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                                    }`}>
+                                      {result}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* PDF Viewer / Print Frame Overlay */}
+      {printDoc && (() => {
+        const studentGrades = grades.filter(g => g.studentId === printDoc.studentId);
+        const studentClassId = printDoc.classId || studentGrades[0]?.classId || classes[0]?.id || 'class_enf_m1_mat';
+        const studentSubjectId = printDoc.subjectId || studentGrades[0]?.subjectId || subjects.find(s => {
+          const cls = classes.find(c => c.id === studentClassId);
+          return cls && s.courseId === cls.courseId && s.module === cls.module;
+        })?.id || 'enf_m1_anatomia';
+        return (
+          <PrintModal
+            documentType={printDoc.type}
+            studentId={printDoc.studentId}
+            classId={studentClassId}
+            subjectId={studentSubjectId}
+            onClose={() => setPrintDoc(null)}
+          />
+        );
+      })()}
+
+      {/* Grade Journal Floating Window Window System */}
+      {(gradeWindowState === 'open' || gradeWindowState === 'minimized') && (() => {
+        const targetClass = classes.find(c => c.id === activeClassId);
+        const targetSubject = subjects.find(s => s.id === activeSubjectId);
+        return (
+          <>
+            {/* Backdrop (Only when open and not maximized to dim the page) */}
+            {gradeWindowState === 'open' && (
+              <div 
+                className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-40 transition-opacity animate-fade-in"
+                onClick={() => setGradeWindowState('minimized')}
+              />
+            )}
+            
+            {/* Main Floating Window */}
+            <div 
+              style={gradeWindowState === 'minimized' ? { display: 'none' } : undefined}
+              className={`transition-all duration-300 shadow-2xl flex flex-col overflow-hidden z-50 ${
+                isGradeWindowMaximized 
+                  ? 'fixed inset-0 bg-slate-50 dark:bg-slate-950' 
+                  : 'fixed top-[4%] bottom-[4%] left-[2%] right-[2%] md:top-[8%] md:bottom-[8%] md:left-[8%] md:right-[8%] bg-white dark:bg-slate-900 rounded-3xl border border-slate-150 dark:border-slate-800 shadow-blue-500/5'
+              }`}
+            >
+              {/* Title Bar / Control Header */}
+              <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between select-none shrink-0 border-b border-slate-800">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center justify-center p-1.5 bg-blue-500/10 rounded-lg shrink-0">
+                    <BookOpen className="h-4.5 w-4.5 text-blue-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-extrabold text-[10px] tracking-widest text-slate-400 uppercase block leading-none mb-1">
+                      Controle Admin — Diário de Notas
+                    </span>
+                    <span className="font-black text-xs sm:text-sm text-white block truncate">
+                      {targetSubject?.name || 'Disciplina'} — {targetClass?.name || 'Turma'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Window Controls */}
+                <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-4">
+                  {/* Minimize Button */}
+                  <button
+                    type="button"
+                    onClick={() => setGradeWindowState('minimized')}
+                    className="flex items-center justify-center gap-1 px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-amber-400 hover:text-amber-300 font-extrabold text-[10px] rounded-xl transition-all border border-slate-700 cursor-pointer"
+                    title="Minimizar Janela (Mantém lançamentos)"
+                  >
+                    <Minus className="h-3 w-3" />
+                    <span className="hidden sm:inline">Minimizar</span>
+                  </button>
+
+                  {/* Maximize / Restore Button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsGradeWindowMaximized(!isGradeWindowMaximized)}
+                    className="flex items-center justify-center gap-1 px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-emerald-400 hover:text-emerald-300 font-extrabold text-[10px] rounded-xl transition-all border border-slate-700 cursor-pointer"
+                    title={isGradeWindowMaximized ? "Restaurar Tamanho" : "Maximizar (Tela Cheia)"}
+                  >
+                    {isGradeWindowMaximized ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+                    <span className="hidden sm:inline">{isGradeWindowMaximized ? 'Restaurar' : 'Maximizar'}</span>
+                  </button>
+
+                  {/* Close Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGradeWindowState('closed');
+                    }}
+                    className="flex items-center justify-center gap-1 px-3 py-2 bg-red-950/40 hover:bg-red-900/60 active:scale-95 text-red-400 hover:text-red-300 font-extrabold text-[10px] rounded-xl transition-all border border-red-900/30 cursor-pointer"
+                    title="Fechar Janela"
+                  >
+                    <X className="h-3 w-3" />
+                    <span className="hidden sm:inline">Fechar</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Window Body - Renders GradeJournal component */}
+              <div className="flex-1 overflow-y-auto bg-slate-100 dark:bg-slate-950 p-4 sm:p-6">
+                <div className="max-w-7xl mx-auto">
+                  <GradeJournal />
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
+      {/* Attendance Journal Floating Window Window System */}
+      {(attendanceWindowState === 'open' || attendanceWindowState === 'minimized') && (() => {
+        const targetClass = classes.find(c => c.id === activeClassId);
+        const targetSubject = subjects.find(s => s.id === activeSubjectId);
+        return (
+          <>
+            {/* Backdrop (Only when open and not maximized to dim the page) */}
+            {attendanceWindowState === 'open' && (
+              <div 
+                className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-40 transition-opacity animate-fade-in"
+                onClick={() => setAttendanceWindowState('minimized')}
+              />
+            )}
+            
+            {/* Main Floating Window */}
+            <div 
+              style={attendanceWindowState === 'minimized' ? { display: 'none' } : undefined}
+              className={`transition-all duration-300 shadow-2xl flex flex-col overflow-hidden z-50 ${
+                isAttendanceWindowMaximized 
+                  ? 'fixed inset-0 bg-slate-50 dark:bg-slate-950' 
+                  : 'fixed top-[4%] bottom-[4%] left-[2%] right-[2%] md:top-[8%] md:bottom-[8%] md:left-[8%] md:right-[8%] bg-white dark:bg-slate-900 rounded-3xl border border-slate-150 dark:border-slate-800 shadow-emerald-500/5'
+              }`}
+            >
+              {/* Title Bar / Control Header */}
+              <div className="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between select-none shrink-0 border-b border-slate-800">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center justify-center p-1.5 bg-emerald-500/10 rounded-lg shrink-0">
+                    <Calendar className="h-4.5 w-4.5 text-emerald-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-extrabold text-[10px] tracking-widest text-slate-400 uppercase block leading-none mb-1">
+                      Controle Admin — Diário de Frequência (Chamadas)
+                    </span>
+                    <span className="font-black text-xs sm:text-sm text-white block truncate">
+                      {targetSubject?.name || 'Disciplina'} — {targetClass?.name || 'Turma'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Window Controls */}
+                <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-4">
+                  {/* Minimize Button */}
+                  <button
+                    type="button"
+                    onClick={() => setAttendanceWindowState('minimized')}
+                    className="flex items-center justify-center gap-1 px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-amber-400 hover:text-amber-300 font-extrabold text-[10px] rounded-xl transition-all border border-slate-700 cursor-pointer"
+                    title="Minimizar Janela (Mantém lançamentos)"
+                  >
+                    <Minus className="h-3 w-3" />
+                    <span className="hidden sm:inline">Minimizar</span>
+                  </button>
+
+                  {/* Maximize / Restore Button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsAttendanceWindowMaximized(!isAttendanceWindowMaximized)}
+                    className="flex items-center justify-center gap-1 px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-95 text-emerald-400 hover:text-emerald-300 font-extrabold text-[10px] rounded-xl transition-all border border-slate-700 cursor-pointer"
+                    title={isAttendanceWindowMaximized ? "Restaurar Tamanho" : "Maximizar (Tela Cheia)"}
+                  >
+                    {isAttendanceWindowMaximized ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+                    <span className="hidden sm:inline">{isAttendanceWindowMaximized ? 'Restaurar' : 'Maximizar'}</span>
+                  </button>
+
+                  {/* Close Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAttendanceWindowState('closed');
+                    }}
+                    className="flex items-center justify-center gap-1 px-3 py-2 bg-red-950/40 hover:bg-red-900/60 active:scale-95 text-red-400 hover:text-red-300 font-extrabold text-[10px] rounded-xl transition-all border border-red-900/30 cursor-pointer"
+                    title="Fechar Janela"
+                  >
+                    <X className="h-3 w-3" />
+                    <span className="hidden sm:inline">Fechar</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Window Body - Renders AttendanceJournal component */}
+              <div className="flex-1 overflow-y-auto bg-slate-100 dark:bg-slate-950 p-4 sm:p-6">
+                <div className="max-w-7xl mx-auto">
+                  <AttendanceJournal />
+                </div>
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
+      {/* Floating dock action to restore minimized window */}
+      {gradeWindowState === 'minimized' && (() => {
+        const targetSubject = subjects.find(s => s.id === activeSubjectId);
+        return (
+          <motion.div
+            initial={{ y: 50, scale: 0.9, opacity: 0 }}
+            animate={{ y: 0, scale: 1, opacity: 1 }}
+            className="fixed bottom-6 right-6 z-45"
+          >
+            <button
+              type="button"
+              onClick={() => setGradeWindowState('open')}
+              className="flex items-center gap-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-5 py-3.5 rounded-full shadow-2xl shadow-blue-500/40 font-extrabold text-xs border border-white/25 select-none cursor-pointer"
+            >
+              <span className="flex h-2.5 w-2.5 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+              </span>
+              <span>Restaurar Diário: {targetSubject?.name || 'Notas'}</span>
+            </button>
+          </motion.div>
+        );
+      })()}
+
+      {/* Floating dock action to restore minimized attendance window */}
+      {attendanceWindowState === 'minimized' && (() => {
+        const targetSubject = subjects.find(s => s.id === activeSubjectId);
+        return (
+          <motion.div
+            initial={{ y: 50, scale: 0.9, opacity: 0 }}
+            animate={{ y: 0, scale: 1, opacity: 1 }}
+            className="fixed bottom-20 right-6 z-45"
+          >
+            <button
+              type="button"
+              onClick={() => setAttendanceWindowState('open')}
+              className="flex items-center gap-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-5 py-3.5 rounded-full shadow-2xl shadow-emerald-500/40 font-extrabold text-xs border border-white/25 select-none cursor-pointer"
+            >
+              <span className="flex h-2.5 w-2.5 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+              </span>
+              <span>Restaurar Frequência: {targetSubject?.name || 'Chamada'}</span>
+            </button>
+          </motion.div>
+        );
+      })()}
+
+      {/* MODAL: CONTROLE DE DOCUMENTOS DOS ALUNOS */}
+      {selectedDocStudentId && (() => {
+        const student = users.find(u => u.id === selectedDocStudentId);
+        if (!student) return null;
+        const cl = classes.find(c => c.id === student.classId);
+        const course = courses.find(co => co.id === cl?.courseId);
+        const requiredDocs = getRequiredDocsForStudent(course?.name);
+        const docs = studentDocuments.filter(d => d.studentId === selectedDocStudentId);
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-3xl p-6 shadow-xl border border-slate-150 dark:border-slate-800 space-y-4"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-150 dark:border-slate-800">
+                <div>
+                  <h4 className="font-extrabold text-slate-800 dark:text-white">Documentação Mandatória</h4>
+                  <p className="text-[10px] text-slate-500">{student.name} ({course?.name || 'Técnico'})</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDocStudentId(null)}
+                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 transition-all"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                {requiredDocs.map(docName => {
+                  const docId = `doc_${selectedDocStudentId}_${docName}`;
+                  const docRecord = docs.find(d => d.name === docName);
+                  const status = docRecord?.status || 'PENDENTE';
+
+                  return (
+                    <div key={docName} className="p-3 bg-slate-50/50 dark:bg-slate-850/40 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-0.5 min-w-0">
+                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{docName}</p>
+                        {docRecord?.fileName && (
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 min-w-0">
+                            <Paperclip className="h-3 w-3 shrink-0 text-blue-600" />
+                            <a
+                              href={docRecord.fileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="hover:underline text-blue-600 truncate max-w-[180px]"
+                            >
+                              {docRecord.fileName}
+                            </a>
+                            <span className="shrink-0">({new Date(docRecord.uploadedAt || '').toLocaleDateString('pt-BR')})</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <select
+                          value={status}
+                          onChange={(e) => {
+                            updateStudentDocumentStatus(docId, e.target.value as any, docRecord?.fileUrl, docRecord?.fileName);
+                          }}
+                          className={`px-2 py-1 border rounded-lg text-[10px] font-bold outline-none ${
+                            status === 'ENTREGUE'
+                              ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border-emerald-200'
+                              : status === 'ENVIADO'
+                              ? 'bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 border-amber-200'
+                              : 'bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 border-red-200'
+                          }`}
+                        >
+                          <option value="PENDENTE">❌ PENDENTE</option>
+                          <option value="ENVIADO">🟡 ENVIADO</option>
+                          <option value="ENTREGUE">✅ ENTREGUE</option>
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex justify-end pt-3 border-t border-slate-150 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setSelectedDocStudentId(null)}
+                  className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-xl shadow shadow-blue-600/10 transition-all uppercase tracking-wider"
+                >
+                  Concluir Análise
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+};
