@@ -9,6 +9,7 @@ import { useApp } from '../context/AppContext';
 import { Printer, X, Download, ShieldCheck, FileText, Minus, Maximize2, Minimize2, ZoomIn, ZoomOut } from 'lucide-react';
 import { motion } from 'motion/react';
 import { safeLocalStorage } from '../lib/safeStorage';
+import { LOGO_COLEGIO_OSWALDO_CRUZ, ASSINATURA_SECRETARIO } from '../lib/imageAssets';
 
 interface PrintModalProps {
   documentType: 'boletim' | 'diario_notas' | 'diario_freq' | 'mapa_notas' | 'boletim_sala' | 'decl_escolaridade' | 'decl_ctransp' | 'decl_vacina';
@@ -256,7 +257,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
   // High Fidelity SVGs representing the real physical logo systems from screenshots
   const LogoOswaldoCruzHeader = () => (
     <img
-      src="/logo-colegio-oswaldo-cruz.png"
+      src={LOGO_COLEGIO_OSWALDO_CRUZ}
       alt="Colégio Oswaldo Cruz"
       className="h-16 w-auto object-contain block select-none"
       referrerPolicy="no-referrer"
@@ -318,7 +319,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
 
   const YanSignature = () => (
     <img
-      src="/assinatura-secretario.png"
+      src={ASSINATURA_SECRETARIO}
       alt="Assinatura Yan Neres"
       className="w-56 h-auto object-contain block select-none"
       referrerPolicy="no-referrer"
@@ -1513,7 +1514,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       {/* Real Image Header provided by User with fallback */}
                       <div className="flex items-center justify-center border-b border-gray-200 pb-6 mb-8 select-none">
                         <img 
-                          src="/logo-colegio-oswaldo-cruz.png" 
+                          src={LOGO_COLEGIO_OSWALDO_CRUZ} 
                           alt="Cabeçalho Colégio Oswaldo Cruz" 
                           className="w-full max-h-24 object-contain block"
                           referrerPolicy="no-referrer"
@@ -1550,7 +1551,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       <div className="flex justify-end pr-12 mt-12">
                         <div className="relative">
                           <img 
-                            src="/assinatura-secretario.png" 
+                            src={ASSINATURA_SECRETARIO} 
                             alt="Assinatura Yan Neres" 
                             className="w-56 h-auto object-contain block"
                             referrerPolicy="no-referrer"
