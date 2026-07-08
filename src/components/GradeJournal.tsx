@@ -311,8 +311,21 @@ export const GradeJournal: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-150 dark:divide-slate-800 font-semibold text-slate-800 dark:text-slate-200">
               {classStudents.map((stud, idx) => {
-                const grade = journalGrades.find(g => g.studentId === stud.id);
-                if (!grade) return null;
+                let grade = journalGrades.find(g => g.studentId === stud.id);
+                if (!grade) {
+                  // Fallback default grade object so the student is rendered and editable
+                  grade = {
+                    id: `grade_${stud.id}_${targetClass.id}_${targetSubject.id}`,
+                    subjectId: targetSubject.id,
+                    classId: targetClass.id,
+                    studentId: stud.id,
+                    av1: null, av2: null, av3: null, recS1: null, s1: 0,
+                    av4: null, av5: null, av6: null, recS2: null, s2: 0,
+                    extra: null, conselho: null, afc: null, pf: 0,
+                    concept: 'E',
+                    result: 'Pendente'
+                  };
+                }
 
                 const isTransferred = stud.classId !== targetClass.id;
 

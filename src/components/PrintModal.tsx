@@ -255,52 +255,12 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
 
   // High Fidelity SVGs representing the real physical logo systems from screenshots
   const LogoOswaldoCruzHeader = () => (
-    <div className="flex flex-col items-start select-none">
-      <div className="flex items-center gap-1">
-        <svg viewBox="0 0 240 60" className="h-14 w-60">
-          {/* Red horizontal stripes behind */}
-          <g opacity="0.95">
-            <line x1="10" y1="12" x2="190" y2="12" stroke="#e11d48" strokeWidth="2.5" />
-            <line x1="10" y1="18" x2="190" y2="18" stroke="#e11d48" strokeWidth="2.5" />
-            <line x1="10" y1="24" x2="190" y2="24" stroke="#e11d48" strokeWidth="2.5" />
-            <line x1="10" y1="30" x2="190" y2="30" stroke="#e11d48" strokeWidth="2.5" />
-            <line x1="10" y1="36" x2="190" y2="36" stroke="#e11d48" strokeWidth="2.5" />
-            <line x1="10" y1="42" x2="190" y2="42" stroke="#e11d48" strokeWidth="2.5" />
-          </g>
-          
-          {/* C O C Text overlay */}
-          {/* Letter C */}
-          <text x="15" y="45" fill="#000000" stroke="#ffffff" strokeWidth="4" paintOrder="stroke fill" className="text-4xl font-black font-sans" style={{ fontSize: '46px', fontWeight: 950 }}>
-            C
-          </text>
-          <text x="15" y="45" fill="#000000" className="text-4xl font-black font-sans" style={{ fontSize: '46px', fontWeight: 950 }}>
-            C
-          </text>
-
-          {/* Letter O with white background circle inside */}
-          <circle cx="102" cy="27" r="21" fill="#ffffff" stroke="#000000" strokeWidth="4" />
-          {/* Inside of O: Bird / Caduceus / Nursing / Pelican Symbol */}
-          <g transform="translate(88, 13) scale(0.7)">
-            {/* Elegant Bird Symbol */}
-            <path d="M 20,4 C 20,4 23,10 20,14 C 17,10 20,4 20,4" fill="#000000" />
-            <path d="M 20,14 C 12,8 5,12 2,16 C 10,20 18,18 20,24 C 22,18 30,20 38,16 C 35,12 28,8 20,14" fill="#000000" />
-            <path d="M 18,24 L 22,24 L 24,34 L 16,34 Z" fill="#000000" />
-            <circle cx="20" cy="18" r="2" fill="#ffffff" />
-          </g>
-
-          {/* Letter C */}
-          <text x="145" y="45" fill="#000000" stroke="#ffffff" strokeWidth="4" paintOrder="stroke fill" className="text-4xl font-black font-sans" style={{ fontSize: '46px', fontWeight: 950 }}>
-            C
-          </text>
-          <text x="145" y="45" fill="#000000" className="text-4xl font-black font-sans" style={{ fontSize: '46px', fontWeight: 950 }}>
-            C
-          </text>
-        </svg>
-      </div>
-      <span className="text-[15px] font-black tracking-wider text-black mt-1 uppercase" style={{ fontFamily: '"Georgia", "Times New Roman", serif', letterSpacing: '0.15em' }}>
-        COLÉGIO OSWALDO CRUZ
-      </span>
-    </div>
+    <img
+      src="/logo-colegio-oswaldo-cruz.png"
+      alt="Colégio Oswaldo Cruz"
+      className="h-16 w-auto object-contain block select-none"
+      referrerPolicy="no-referrer"
+    />
   );
 
   const Seal30Anos = () => (
@@ -357,38 +317,12 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
   );
 
   const YanSignature = () => (
-    <div className="relative w-56 h-24 flex flex-col items-center justify-center select-none">
-      {/* High-fidelity blue pen cursive signature path */}
-      <svg viewBox="0 0 160 80" className="absolute -top-10 left-6 h-24 w-48 pointer-events-none">
-        <path
-          d="M 15,35 Q 25,12 30,16 Q 32,25 20,38 Q 14,44 20,52 Q 26,56 40,40 L 58,15 M 44,26 C 50,20 56,20 60,26 C 62,29 60,34 56,36 L 66,26 C 70,22 74,22 76,26 Q 80,32 74,36 M 80,20 L 100,38 Q 104,16 110,16 C 116,16 112,28 106,32 M 114,28 C 120,24 126,24 130,28 C 132,30 130,34 126,36 M 134,28 Q 138,24 142,28 C 144,30 142,34 136,36"
-          fill="none"
-          stroke="#1d4ed8"
-          strokeWidth="2.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="opacity-95"
-        />
-        {/* Underline loop */}
-        <path
-          d="M 20,40 Q 60,52 110,48 T 150,32"
-          fill="none"
-          stroke="#1d4ed8"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          className="opacity-90"
-        />
-      </svg>
-      {/* Printed details matching screenshot signature metadata exactly */}
-      <div className="mt-14 text-center">
-        <p className="font-serif font-semibold text-[13px] text-black tracking-normal leading-snug">
-          Yan Neres da Silva
-        </p>
-        <p className="text-[10px] text-slate-800 font-sans tracking-wide leading-tight">
-          Secretário
-        </p>
-      </div>
-    </div>
+    <img
+      src="/assinatura-secretario.png"
+      alt="Assinatura Yan Neres"
+      className="w-56 h-auto object-contain block select-none"
+      referrerPolicy="no-referrer"
+    />
   );
 
   const renderHeader = (pageInfo?: string, currentStudentOverride?: any) => {
@@ -1579,9 +1513,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       {/* Real Image Header provided by User with fallback */}
                       <div className="flex items-center justify-center border-b border-gray-200 pb-6 mb-8 select-none">
                         <img 
-                          src="/cabecalho_escolaridade.png" 
+                          src="/logo-colegio-oswaldo-cruz.png" 
                           alt="Cabeçalho Colégio Oswaldo Cruz" 
                           className="w-full max-h-24 object-contain block"
+                          referrerPolicy="no-referrer"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none';
                             const fallback = e.currentTarget.nextElementSibling as HTMLElement;
@@ -1615,9 +1550,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       <div className="flex justify-end pr-12 mt-12">
                         <div className="relative">
                           <img 
-                            src="/assinatura_escolaridade.png" 
+                            src="/assinatura-secretario.png" 
                             alt="Assinatura Yan Neres" 
                             className="w-56 h-auto object-contain block"
+                            referrerPolicy="no-referrer"
                             onError={(e) => {
                               e.currentTarget.style.display = 'none';
                               const fallback = e.currentTarget.nextElementSibling as HTMLElement;

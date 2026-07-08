@@ -608,37 +608,7 @@ export const AdminDashboard: React.FC = () => {
           </p>
         </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
-            <Database className="h-4.5 w-4.5" />
-            <h4 className="font-extrabold text-xs uppercase tracking-wider">Controle do Banco de Dados</h4>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => {
-                if (confirm('ATENÇÃO: Isso irá apagar completamente todos os alunos, professores, diários, frequências e notas do sistema. Deixando-o totalmente limpo para uso real. Deseja prosseguir?')) {
-                  wipeAllData();
-                  alert('Sistema limpo com sucesso! Todos os dados de teste foram apagados.');
-                }
-              }}
-              className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 dark:bg-red-950 dark:hover:bg-red-900 text-white dark:text-red-200 font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 border border-transparent dark:border-red-900/30"
-            >
-              <XCircle className="h-3.5 w-3.5" /> Limpar Tudo (Produção)
-            </button>
-            <button
-              onClick={() => {
-                loadDemoData();
-                alert('Massa de dados de teste carregada com sucesso! Você já pode testar o boletim dos alunos ou os lançamentos dos professores.');
-              }}
-              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-950 dark:hover:bg-emerald-900 text-white dark:text-emerald-200 font-extrabold text-[10px] uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 border border-transparent dark:border-emerald-900/30"
-            >
-              <RefreshCw className="h-3.5 w-3.5 animate-spin" style={{ animationDuration: '3s' }} /> Carregar Demonstração
-            </button>
-          </div>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-            Alterne entre o portal limpo de produção ou a simulação completa com alunos.
-          </p>
-        </div>
+
       </div>
 
       {/* Tab Selectors */}
@@ -891,18 +861,6 @@ export const AdminDashboard: React.FC = () => {
                 <label htmlFor="auto-lock-checkbox" className="font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
                   Bloquear diários automaticamente ao atingir os prazos limites
                 </label>
-              </div>
-              <div className="text-[10px] text-slate-400 flex items-center gap-2">
-                <span>Data ativa para testes:</span>
-                <input
-                  type="date"
-                  value={simulatedDate}
-                  onChange={(e) => {
-                    setSimulatedDate(e.target.value);
-                    addSecurityLog('SISTEMA_DATA', `Data ativa para simulação de testes alterada para ${e.target.value.split('-').reverse().join('/')}.`, 'low');
-                  }}
-                  className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer text-xs font-mono"
-                />
               </div>
             </div>
           </div>
@@ -2402,14 +2360,19 @@ export const AdminDashboard: React.FC = () => {
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white"
                 >
                   <option value="" disabled>Selecione a turma de destino...</option>
-                  {classes.map(cl => {
-                    const co = courses.find(course => course.id === cl.courseId);
-                    return (
-                      <option key={cl.id} value={cl.id}>
-                        {cl.name} ({co?.name || 'Técnico'})
-                      </option>
-                    );
-                  })}
+                  {classes
+                    .filter(cl => {
+                      const [yearStr, semStr] = currentPeriod.split('/');
+                      return cl.year === parseInt(yearStr, 10) && cl.semester === parseInt(semStr, 10);
+                    })
+                    .map(cl => {
+                      const co = courses.find(course => course.id === cl.courseId);
+                      return (
+                        <option key={cl.id} value={cl.id}>
+                          {cl.name} ({co?.name || 'Técnico'})
+                        </option>
+                      );
+                    })}
                 </select>
               </div>
 

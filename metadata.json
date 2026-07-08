@@ -1,6 +1,6 @@
 {
   "name": "Portal Acadêmico - LYnx EDU",
-  "description": "Sistema ERP acadêmico completo para o LYnx EDU Sistemas Escolares Inteligentes com ambientes de Administrador, Professor e Aluno, controle de diários, notas, frequência, boletins e mapas de notas.",
+  "description": "Portal acadêmico do LYnx EDU com painel para administrador, professor e aluno, controle de notas, frequências, boletins e diários de classe.",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -1104,48 +1104,91 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateGrade = (id: string, updates: Partial<GradeRecord>) => {
-    setGrades(prev => prev.map(g => {
-      if (g.id === id) {
-        // Merge updates
-        const merged = { ...g, ...updates };
-        
-        // Calculate S1 & S2
-        const s1 = calculateS1(merged);
-        const s2 = calculateS2(merged);
-        
-        // Final PF (capped at 100) and AFC (capped at 40)
-        const rawAfc = merged.afc;
-        const afcVal = rawAfc !== null && rawAfc !== undefined ? Math.min(40, rawAfc) : null;
-        
-        const extra = merged.extra ?? 0;
-        const conselho = merged.conselho ?? 0;
-        const pf = Math.min(100, s1 + s2 + (afcVal ?? 0) + extra + conselho);
+    setGrades(prev => {
+      const exists = prev.some(g => g.id === id);
+      if (exists) {
+        return prev.map(g => {
+          if (g.id === id) {
+            // Merge updates
+            const merged = { ...g, ...updates };
+            
+            // Calculate S1 & S2
+            const s1 = calculateS1(merged);
+            const s2 = calculateS2(merged);
+            
+            // Final PF (capped at 100) and AFC (capped at 40)
+            const rawAfc = merged.afc;
+            const afcVal = rawAfc !== null && rawAfc !== undefined ? Math.min(40, rawAfc) : null;
+            
+            const extra = merged.extra ?? 0;
+            const conselho = merged.conselho ?? 0;
+            const pf = Math.min(100, s1 + s2 + (afcVal ?? 0) + extra + conselho);
 
-        // Concept mapping
-        const concept = getStudentConcept(pf, conceptRanges);
+            // Concept mapping
+            const concept = getStudentConcept(pf, conceptRanges);
 
-        // Result mapping based on attendance frequency
-        const { frequency } = getStudentAbsences(merged.studentId, merged.subjectId);
-        let result = getStudentResult({ pf, extra, conselho, afc: afcVal }, frequency);
+            // Result mapping based on attendance frequency
+            const { frequency } = getStudentAbsences(merged.studentId, merged.subjectId);
+            const result = getStudentResult({ pf, extra, conselho, afc: afcVal }, frequency);
 
-        // If Conselho Extra points are entered (CS), and student is now APTO, display 'APTO CS' (Fidelity detailing)
-        if (conselho > 0 && result === 'APTO') {
-          // Keep as APTO, but in display or result we can show APTO CS or maintain it
-          // Let's explicitly save APTO as 'APTO' and map APTO CS in UI or write it
+            return {
+              ...merged,
+              afc: afcVal,
+              s1,
+              s2,
+              pf,
+              concept,
+              result
+            };
+          }
+          return g;
+        });
+      } else {
+        // Build new record dynamically if it was missing in state
+        let studentId = updates.studentId || '';
+        let classId = updates.classId || '';
+        let subjectId = updates.subjectId || '';
+        if (id.startsWith('grade_')) {
+          const parts = id.split('_');
+          if (parts.length >= 4) {
+            studentId = parts[1];
+            classId = parts[2];
+            subjectId = parts[3];
+          }
         }
-
-        return {
-          ...merged,
+        const newRecord: GradeRecord = {
+          id,
+          studentId,
+          classId,
+          subjectId,
+          av1: null, av2: null, av3: null, recS1: null, s1: 0,
+          av4: null, av5: null, av6: null, recS2: null, s2: 0,
+          extra: null, conselho: null, afc: null, pf: 0,
+          concept: 'E',
+          result: 'Pendente',
+          ...updates
+        };
+        const s1 = calculateS1(newRecord);
+        const s2 = calculateS2(newRecord);
+        const rawAfc = newRecord.afc;
+        const afcVal = rawAfc !== null && rawAfc !== undefined ? Math.min(40, rawAfc) : null;
+        const extra = newRecord.extra ?? 0;
+        const conselho = newRecord.conselho ?? 0;
+        const pf = Math.min(100, s1 + s2 + (afcVal ?? 0) + extra + conselho);
+        const concept = getStudentConcept(pf, conceptRanges);
+        const { frequency } = getStudentAbsences(newRecord.studentId, newRecord.subjectId);
+        const result = getStudentResult({ pf, extra, conselho, afc: afcVal }, frequency);
+        return [...prev, {
+          ...newRecord,
           afc: afcVal,
           s1,
           s2,
           pf,
           concept,
           result
-        };
+        }];
       }
-      return g;
-    }));
+    });
   };
 
   const updateConceptRanges = (ranges: ConceptRange[]) => {
