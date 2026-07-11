@@ -7,7 +7,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   User, UserRole, Course, ClassSection, Subject, GradeRecord, 
   AttendanceSession, ConceptRange, AcademicCalendarEvent, Message, 
-  AcademicNotification, Shift, SystemStats, StudentDocument, DeclarationConfigs 
+  AcademicNotification, Shift, SystemStats, StudentDocument, DeclarationConfigs,
+  InternshipRecord
 } from '../types';
 import { 
   initialCourses, initialConceptRanges, initialUsers, 
@@ -172,9 +173,11 @@ interface AppContextType {
 
   declarationConfigs: DeclarationConfigs;
   studentDocuments: StudentDocument[];
+  internships: InternshipRecord[];
   updateDeclarationConfig: (type: 'escolaridade' | 'ctransp', fields: { startDate: string, endDate: string }) => void;
   updateStudentDocumentStatus: (id: string, status: 'PENDENTE' | 'ENVIADO' | 'ENTREGUE', fileUrl?: string, fileName?: string) => void;
   transferStudent: (studentId: string, targetClassId: string) => void;
+  updateInternshipRecord: (studentId: string, subjectName: string, workload: number, location: string, grade: number | null) => void;
 }
 
 export function getRequiredDocsForStudent(courseName?: string): string[] {
@@ -367,6 +370,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return val || [];
   });
 
+  const [internships, setInternships] = useState<InternshipRecord[]>(() => {
+    const val = safeJsonParse(safeLocalStorage.getItem('oc_internships'), []);
+    return val || [];
+  });
+
   useEffect(() => {
     safeLocalStorage.setItem('oc_auto_lock_enabled', autoLockEnabled ? 'true' : 'false');
   }, [autoLockEnabled]);
@@ -383,11 +391,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     safeLocalStorage.setItem('oc_student_documents', JSON.stringify(studentDocuments));
   }, [studentDocuments]);
 
+  useEffect(() => {
+    safeLocalStorage.setItem('oc_internships', JSON.stringify(internships));
+  }, [internships]);
+
   const latestStateRef = React.useRef({
     users, courses, classes, subjects, grades, attendance,
     conceptRanges, calendarEvents, messages, notifications,
     currentPeriod, periods, simulatedDate, autoLockEnabled,
-    declarationConfigs, studentDocuments
+    declarationConfigs, studentDocuments, internships
   });
 
   useEffect(() => {
@@ -395,9 +407,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       users, courses, classes, subjects, grades, attendance,
       conceptRanges, calendarEvents, messages, notifications,
       currentPeriod, periods, simulatedDate, autoLockEnabled,
-      declarationConfigs, studentDocuments
+      declarationConfigs, studentDocuments, internships
     };
-  }, [users, courses, classes, subjects, grades, attendance, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments]);
+  }, [users, courses, classes, subjects, grades, attendance, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships]);
 
   const lastReceivedPayloadRef = React.useRef<string>('');
 
@@ -454,6 +466,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             autoLockEnabled: state.autoLockEnabled !== undefined ? state.autoLockEnabled : currentState.autoLockEnabled,
             declarationConfigs: state.declarationConfigs !== undefined ? state.declarationConfigs : currentState.declarationConfigs,
             studentDocuments: state.studentDocuments !== undefined ? state.studentDocuments : currentState.studentDocuments,
+            internships: state.internships !== undefined ? state.internships : currentState.internships,
           };
           const receivedPayloadStr = JSON.stringify(receivedPayload);
           lastReceivedPayloadRef.current = receivedPayloadStr;
@@ -476,6 +489,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (state.securityLogs) { setSecurityLogs(state.securityLogs); safeLocalStorage.setItem('oc_security_logs', JSON.stringify(state.securityLogs)); }
           if (state.declarationConfigs) { setDeclarationConfigs(state.declarationConfigs); safeLocalStorage.setItem('oc_declaration_configs', JSON.stringify(state.declarationConfigs)); }
           if (state.studentDocuments) { setStudentDocuments(state.studentDocuments); safeLocalStorage.setItem('oc_student_documents', JSON.stringify(state.studentDocuments)); }
+          if (state.internships) { setInternships(state.internships); safeLocalStorage.setItem('oc_internships', JSON.stringify(state.internships)); }
 
           if (state.lastBackupTime) {
             setLastCloudBackupTime(state.lastBackupTime);
@@ -490,7 +504,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             users, courses, classes, subjects, grades, attendance,
             conceptRanges, calendarEvents, messages, notifications,
             currentPeriod, periods, simulatedDate, autoLockEnabled, securityLogs,
-            declarationConfigs, studentDocuments
+            declarationConfigs, studentDocuments, internships
           };
           await saveStateToCloud(payload);
           addSecurityLog('SINC_NUVEM_CRIACAO', 'Primeiro nó de dados criado e persistido com sucesso na nuvem Firestore.', 'low');
@@ -1483,6 +1497,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const updateInternshipRecord = (
+    studentId: string,
+    subjectName: string,
+    workload: number,
+    location: string,
+    grade: number | null
+  ) => {
+    setInternships(prev => {
+      const recordId = `int_${studentId}_${subjectName.replace(/\s+/g, '_')}`;
+      const exists = prev.some(r => r.id === recordId || (r.studentId === studentId && r.subjectName === subjectName));
+      const now = new Date().toISOString();
+
+      if (exists) {
+        return prev.map(r => {
+          if (r.id === recordId || (r.studentId === studentId && r.subjectName === subjectName)) {
+            return {
+              ...r,
+              workload,
+              location,
+              grade,
+              updatedAt: now
+            };
+          }
+          return r;
+        });
+      } else {
+        return [...prev, {
+          id: recordId,
+          studentId,
+          subjectName,
+          workload,
+          location,
+          grade,
+          updatedAt: now
+        }];
+      }
+    });
+
+    addSecurityLog(
+      'ESTAGIO_LANCADO',
+      `Lançamento/atualização de estágio feito para o aluno ID ${studentId}: Componente [${subjectName}], Local [${location || 'Sem local'}], Nota [${grade !== null ? grade : 'Pendente'}].`,
+      'low'
+    );
+  };
+
   const transferStudent = (studentId: string, targetClassId: string) => {
     const student = users.find(u => u.id === studentId);
     if (!student) return;
@@ -1921,7 +1980,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     checkSchedule();
     const interval = setInterval(checkSchedule, 30000);
     return () => clearInterval(interval);
-  }, [backupSchedule, users, courses, classes, subjects, grades, attendance, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled]);
+  }, [backupSchedule, users, courses, classes, subjects, grades, attendance, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, internships]);
 
   // Load backups list initially
   useEffect(() => {
@@ -1938,7 +1997,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       users, courses, classes, subjects, grades, attendance,
       conceptRanges, calendarEvents, messages, notifications,
       currentPeriod, periods, simulatedDate, autoLockEnabled,
-      declarationConfigs, studentDocuments
+      declarationConfigs, studentDocuments, internships
     };
     const currentPayloadStr = JSON.stringify(currentPayload);
 
@@ -1991,7 +2050,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 1000); // 1000ms debounce delay to batch multiple updates together
 
     return () => clearTimeout(delayDebounceFn);
-  }, [isLoading, users, courses, classes, subjects, grades, attendance, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments]);
+  }, [isLoading, users, courses, classes, subjects, grades, attendance, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships]);
 
   return (
     <AppContext.Provider value={{
@@ -2019,8 +2078,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       backupSchedule, updateBackupSchedule,
       storageBackups, isLoadingStorageBackups, fetchStorageBackups,
       triggerStorageBackup, deleteStorageBackup,
-      declarationConfigs, studentDocuments,
-      updateDeclarationConfig, updateStudentDocumentStatus, transferStudent
+      declarationConfigs, studentDocuments, internships,
+      updateDeclarationConfig, updateStudentDocumentStatus, transferStudent, updateInternshipRecord
     }}>
       {children}
     </AppContext.Provider>

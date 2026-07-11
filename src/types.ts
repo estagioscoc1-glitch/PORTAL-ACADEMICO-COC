@@ -172,3 +172,13 @@ export interface DeclarationConfigs {
   ctransp: { startDate: string; endDate: string };
 }
 
+export interface InternshipRecord {
+  id: string;
+  studentId: string;
+  subjectName: string;
+  workload: number;
+  location: string;
+  grade: number | null;
+  updatedAt?: string;
+}
+

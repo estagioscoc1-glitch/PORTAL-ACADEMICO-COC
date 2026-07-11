@@ -92,6 +92,7 @@ export interface SystemStatePayload {
   securityLogs: any[];
   declarationConfigs?: any;
   studentDocuments?: any[];
+  internships?: any[];
   lastBackupTime?: string;
   version?: string;
 }

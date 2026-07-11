@@ -9,7 +9,6 @@ import { useApp } from '../context/AppContext';
 import { Printer, X, Download, ShieldCheck, FileText, Minus, Maximize2, Minimize2, ZoomIn, ZoomOut } from 'lucide-react';
 import { motion } from 'motion/react';
 import { safeLocalStorage } from '../lib/safeStorage';
-import { LOGO_COLEGIO_OSWALDO_CRUZ, ASSINATURA_SECRETARIO } from '../lib/imageAssets';
 
 interface PrintModalProps {
   documentType: 'boletim' | 'diario_notas' | 'diario_freq' | 'mapa_notas' | 'boletim_sala' | 'decl_escolaridade' | 'decl_ctransp' | 'decl_vacina';
@@ -44,8 +43,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
 
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
-  const [zoom, setZoom] = useState(isLandscape ? 0.75 : 0.95);
-  const [isAutoFit, setIsAutoFit] = useState(true); // Default to true for perfect fit
+  const [zoom, setZoom] = useState(1);
+  const [isAutoFit, setIsAutoFit] = useState(false); // Default to true for perfect fit
   const [activePage, setActivePage] = useState(0); // Page index for multi-page frequency sheets preview
   const previewContainerRef = useRef<HTMLDivElement>(null);
 
@@ -257,7 +256,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
   // High Fidelity SVGs representing the real physical logo systems from screenshots
   const LogoOswaldoCruzHeader = () => (
     <img
-      src={LOGO_COLEGIO_OSWALDO_CRUZ}
+      src="https://raw.githubusercontent.com/estagioscoc1-glitch/PORTAL-ACADEMICO-COC/main/public/logo-colegio-oswaldo-cruz.png"
       alt="Colégio Oswaldo Cruz"
       className="h-16 w-auto object-contain block select-none"
       referrerPolicy="no-referrer"
@@ -319,7 +318,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
 
   const YanSignature = () => (
     <img
-      src={ASSINATURA_SECRETARIO}
+      src="https://raw.githubusercontent.com/estagioscoc1-glitch/PORTAL-ACADEMICO-COC/main/public/assinatura-secretario.png"
       alt="Assinatura Yan Neres"
       className="w-56 h-auto object-contain block select-none"
       referrerPolicy="no-referrer"
@@ -1413,6 +1412,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
         <div 
           ref={previewContainerRef}
           className="p-6 overflow-auto bg-slate-100 dark:bg-slate-950 flex flex-col items-center justify-start flex-1 print-preview-area"
+          style={{ colorScheme: 'light' }}
         >
           {/* Custom style to hide inactive pages on screen preview, but keep them on print */}
           <style dangerouslySetInnerHTML={{ __html: `
@@ -1514,7 +1514,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       {/* Real Image Header provided by User with fallback */}
                       <div className="flex items-center justify-center border-b border-gray-200 pb-6 mb-8 select-none">
                         <img 
-                          src={LOGO_COLEGIO_OSWALDO_CRUZ} 
+                          src="https://raw.githubusercontent.com/estagioscoc1-glitch/PORTAL-ACADEMICO-COC/main/public/logo-colegio-oswaldo-cruz.png" 
                           alt="Cabeçalho Colégio Oswaldo Cruz" 
                           className="w-full max-h-24 object-contain block"
                           referrerPolicy="no-referrer"
@@ -1530,41 +1530,26 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                         </div>
                       </div>
 
-                      <h2 className="text-center font-serif text-3xl font-normal tracking-wide text-black mt-12 mb-16 select-none">
-                        Declaração
+                      <h2 className="text-center font-sans text-2xl font-black tracking-widest text-black mt-12 mb-16 select-none uppercase">
+                        DECLARAÇÃO
                       </h2>
 
                       <div className="space-y-6 text-sm leading-relaxed text-justify mt-10">
                         <p className="leading-relaxed text-slate-800 text-justify tracking-wide text-[13px]" style={{ textIndent: '2.5rem' }}>
-                          Declaramos, para os devidos fins, que o aluno <strong className="font-bold text-black">{targetStudent.name}</strong>, está regularmente matriculado neste estabelecimento de ensino, no curso <strong className="font-bold text-black">{formatCourseName(targetCourse?.name || '')}</strong>, com número de matrícula <strong className="font-bold text-black font-mono">{targetStudent.username}</strong>. O referido aluno está matriculado no turno <strong className="font-bold text-black">{capitalizeWord(targetClass?.shift || 'Noturno')}</strong>, com inicio em {getFormattedStartDateEscolaridade()} e termino do curso na data de {getFormattedEndDateEscolaridade()}.
+                          Declaramos, para os devidos fins, que o aluno <strong className="underline font-bold text-black">{targetStudent.name.toUpperCase()}</strong>, está regularmente matriculado neste estabelecimento de ensino, no curso <strong className="underline font-bold text-black">{formatCourseName(targetCourse?.name || '').toUpperCase()}</strong>, com número de matrícula <strong className="underline font-bold text-black font-mono">{targetStudent.username}</strong>. O referido aluno está matriculado no turno <strong className="underline font-bold text-black">{capitalizeWord(targetClass?.shift || 'Noturno').toUpperCase()}</strong>, com início em <strong className="underline font-bold text-black font-mono">{getFormattedStartDateEscolaridade().toUpperCase()}</strong> e término do curso na data de <strong className="underline font-bold text-black font-mono">{getFormattedEndDateEscolaridade().toUpperCase()}</strong>.
                         </p>
                       </div>
                     </div>
 
                     <div className="space-y-12">
                       <div className="flex justify-end mr-6 select-none">
-                        <p className="font-sans text-[13px] text-slate-900 font-medium">
-                          Goiânia, {new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}.
+                        <p className="font-sans text-[13px] text-slate-900 font-semibold">
+                          Goiânia, {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}.
                         </p>
                       </div>
 
                       <div className="flex justify-end pr-12 mt-12">
-                        <div className="relative">
-                          <img 
-                            src={ASSINATURA_SECRETARIO} 
-                            alt="Assinatura Yan Neres" 
-                            className="w-56 h-auto object-contain block"
-                            referrerPolicy="no-referrer"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                              const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                              if (fallback) fallback.classList.remove('hidden');
-                            }}
-                          />
-                          <div className="hidden">
-                            <YanSignature />
-                          </div>
-                        </div>
+                        <YanSignature />
                       </div>
                     </div>
 
@@ -1583,12 +1568,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                     <div>
                       {/* Custom Header from Screenshot 3 */}
                       <div className="select-none">
-                        <div className="flex items-center justify-between pb-3">
+                        <div className="flex items-center justify-center pb-3">
                           <LogoOswaldoCruzHeader />
-                          <div className="flex items-center gap-4">
-                            <ColegioACWLogo />
-                            <RedStampLogo />
-                          </div>
                         </div>
                         <div className="border-t border-black w-full my-1"></div>
                         <div className="text-center text-[8px] font-sans text-slate-700 leading-normal mb-6">
@@ -1620,12 +1601,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       </div>
                     </div>
 
-                    {/* Footer centered at the absolute bottom */}
-                    <div className="absolute bottom-4 left-6 right-6 flex items-center justify-between text-[9px] text-slate-500 font-mono border-t border-slate-300 pt-1 select-none leading-none">
-                      <span>Sistema de Gerenciamento Escolar</span>
-                      <span className="font-bold">1</span>
-                      <span>J.R. - Informática</span>
-                    </div>
+
                   </div>
                 )}
 
@@ -1634,21 +1610,17 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                   <div className="flex flex-col h-full justify-between min-h-[25cm] pb-20 text-black px-8">
                     <div>
                       {/* Custom Header from Screenshot 2 */}
-                      <div className="flex items-center justify-between border-b border-gray-200 pb-6 mb-8 select-none">
+                      <div className="flex items-center justify-center border-b border-gray-200 pb-6 mb-8 select-none">
                         <LogoOswaldoCruzHeader />
-                        <JeffersonMachadoLogo />
-                        <Seal30Anos />
                       </div>
 
-                      <div className="text-center mt-12 mb-16 select-none">
-                        <h2 className="text-2xl font-extrabold tracking-widest text-black inline-block border-b-2 border-black pb-1 uppercase font-sans">
-                          DECLARAÇÃO
-                        </h2>
-                      </div>
+                      <h2 className="text-center font-sans text-2xl font-black tracking-widest text-black mt-12 mb-16 select-none uppercase">
+                        DECLARAÇÃO
+                      </h2>
 
                       <div className="space-y-6 text-sm leading-relaxed text-justify mt-8 select-text">
                         <p className="leading-relaxed text-slate-800 text-justify tracking-wide text-[13px]" style={{ textIndent: '2.5rem' }}>
-                          A Gerência de Estágios do Colégio Oswaldo Cruz, vem por intermédio desta, declarar junto à Secretaria Municipal de Saúde de desse município que o Sr (a). <strong className="underline decoration-solid font-bold text-black">{targetStudent.name}</strong> é aluno (a) desta instituição de ensino e está regularmente matriculado no Curso Técnico em <strong className="font-bold uppercase text-black">{targetCourse?.name ? targetCourse.name.toUpperCase() : 'ENFERMAGEM'}</strong>, para o <strong className="font-bold uppercase text-black">{getSemesterTextAutomatic()}</strong>.
+                          A Gerência de Estágios do Colégio Oswaldo Cruz, vem por intermédio desta, declarar junto à Secretaria Municipal de Saúde de desse município que o Sr (a). <strong className="underline font-bold text-black">{targetStudent.name.toUpperCase()}</strong> é aluno (a) desta instituição de ensino e está regularmente matriculado no Curso Técnico em <strong className="underline font-bold text-black">{targetCourse?.name ? targetCourse.name.toUpperCase() : 'ENFERMAGEM'}</strong>, para o <strong className="underline font-bold text-black">{getSemesterTextAutomatic().toUpperCase()}</strong>.
                         </p>
                         <p className="leading-relaxed text-slate-800 text-justify tracking-wide text-[13px]" style={{ textIndent: '2.5rem' }}>
                           Para tanto solicitamos que o aluno supracitado receba as seguintes vacinas e todas as demais que tiver disponível nessa unidade de saúde e que componha o PNI do nosso País. (Programa nacional de imunização)
@@ -1669,9 +1641,18 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                     </div>
 
                     <div className="space-y-12 mb-12">
+                      <div className="flex justify-end pr-12 mt-12">
+                        <img 
+                          src="https://raw.githubusercontent.com/estagioscoc1-glitch/PORTAL-ACADEMICO-COC/main/public/assinatura-jefferson.png" 
+                          alt="Assinatura Jefferson Machado" 
+                          className="w-56 h-auto object-contain block select-none"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+
                       <div className="flex justify-end mr-6 select-none">
                         <p className="font-sans text-[13px] text-slate-900 font-semibold">
-                          Goiânia, {new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}.
+                          Goiânia, {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}.
                         </p>
                       </div>
                     </div>

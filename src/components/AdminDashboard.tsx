@@ -18,6 +18,8 @@ import { SpreadsheetImporter } from './SpreadsheetImporter';
 import { PrintModal } from './PrintModal';
 import { GradeJournal } from './GradeJournal';
 import { AttendanceJournal } from './AttendanceJournal';
+import { AdminInternships } from './AdminInternships';
+import { Briefcase } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export const AdminDashboard: React.FC = () => {
@@ -39,7 +41,7 @@ export const AdminDashboard: React.FC = () => {
     updateDeclarationConfig, updateStudentDocumentStatus, transferStudent
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins'>('visu');
+  const [activeTab, setActiveTab] = useState<'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio'>('visu');
   const [searchQuery, setSearchQuery] = useState('');
   const [printDoc, setPrintDoc] = useState<any | null>(null);
 
@@ -608,6 +610,21 @@ export const AdminDashboard: React.FC = () => {
           </p>
         </div>
 
+        {/* Right Side: Quick Access to Internship Management */}
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setActiveTab('estagio')}
+            className={`flex items-center gap-2 px-5 py-3 text-xs font-black uppercase tracking-wider rounded-2xl transition-all shadow-md active:scale-95 cursor-pointer ${
+              activeTab === 'estagio'
+                ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-500/20'
+                : 'bg-white hover:bg-slate-50 text-amber-700 border border-amber-200 dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-amber-400 dark:border-amber-900/40 shadow-sm'
+            }`}
+          >
+            <Briefcase className="h-4.5 w-4.5 text-amber-500" />
+            <span>Gerenciar Estágios</span>
+          </button>
+        </div>
 
       </div>
 
@@ -680,6 +697,18 @@ export const AdminDashboard: React.FC = () => {
         >
           <GraduationCap className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           <span>Boletim Completo</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('estagio')}
+          className={`pb-3 text-xs sm:text-sm font-extrabold px-3 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
+            activeTab === 'estagio' 
+              ? 'text-blue-700 dark:text-blue-400 border-b-2 border-blue-700 dark:border-blue-400' 
+              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <Briefcase className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <span>Lançar Estágios</span>
         </button>
       </div>
 
@@ -3622,6 +3651,17 @@ export const AdminDashboard: React.FC = () => {
               })()}
             </div>
           </div>
+        </motion.div>
+      )}
+
+      {/* Tab: ESTÁGIO (Secretaria de Lançamento de Estágios Supervisionados) */}
+      {activeTab === 'estagio' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-6"
+        >
+          <AdminInternships />
         </motion.div>
       )}
 

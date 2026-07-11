@@ -62,4 +62,42 @@ html.dark select option {
   scrollbar-width: none;  /* Firefox */
 }
 
+/* Force all inputs inside print-preview-area to stay light-themed, even under html.dark */
+html.dark .print-preview-area input,
+.print-preview-area input {
+  background-color: transparent !important;
+  -webkit-appearance: none;
+  appearance: none;
+  color-scheme: light !important;
+}
+
+/* Restore custom text colors (e.g. text-gray-400, text-red-600, text-black) in print preview inputs */
+html.dark .print-preview-area input.text-red-600,
+.print-preview-area input.text-red-600 {
+  color: #dc2626 !important;
+}
+
+html.dark .print-preview-area input.text-gray-400,
+.print-preview-area input.text-gray-400 {
+  color: #9ca3af !important;
+}
+
+html.dark .print-preview-area input.text-black,
+.print-preview-area input.text-black,
+html.dark .print-preview-area input:not(.text-red-600):not(.text-gray-400),
+.print-preview-area input:not(.text-red-600):not(.text-gray-400) {
+  color: #000000 !important;
+}
+
+/* Also ensure other elements like selects or textareas inside print-preview-area remain light-themed */
+html.dark .print-preview-area select,
+.print-preview-area select,
+html.dark .print-preview-area textarea,
+.print-preview-area textarea {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border-color: #e2e8f0 !important;
+}
+
+
 

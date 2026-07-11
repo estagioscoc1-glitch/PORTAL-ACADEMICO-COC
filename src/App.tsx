@@ -23,6 +23,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { MessageCenter } from './components/MessageCenter';
 import { FlashyNotification } from './components/FlashyNotification';
 import { safeLocalStorage } from './lib/safeStorage';
+import HelperBot from './components/HelperBot';
 
 function MainAppLayout() {
   const { currentUser, logout, users, notifications, isLoading } = useApp();
@@ -376,6 +377,9 @@ function MainAppLayout() {
           setIsChatOpen(true);
         }}
       />
+
+      {/* Modern Floating Interactive Helper Bot */}
+      <HelperBot />
     </div>
   );
 }

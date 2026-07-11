@@ -9,9 +9,10 @@ import {
   GraduationCap, Printer, Bell, Calendar, HelpCircle, CheckCircle, 
   AlertTriangle, BookOpen, Clock, Sparkles, ExternalLink, FileText, 
   Image as ImageIcon, Mic, Download, X, Paperclip, ShieldCheck, ShieldAlert,
-  Upload, UploadCloud
+  Upload, UploadCloud, Briefcase, MapPin, Award
 } from 'lucide-react';
 import { PrintModal } from './PrintModal';
+import { getInternshipComponentsByCourse } from './AdminInternships';
 import { motion } from 'motion/react';
 
 interface StudentDashboardProps {
@@ -23,10 +24,10 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
     currentUser, subjects, grades, classes, getStudentAbsences, 
     notifications, calendarEvents, currentPeriod, courses, messages,
     simulatedDate, declarationConfigs, studentDocuments, updateStudentDocumentStatus,
-    users
+    users, internships
   } = useApp();
   const [printDoc, setPrintDoc] = useState<boolean>(false);
-  const [activeSubTab, setActiveSubTab] = useState<'aproveitamento' | 'declaracoes' | 'documentos'>('aproveitamento');
+  const [activeSubTab, setActiveSubTab] = useState<'aproveitamento' | 'declaracoes' | 'documentos' | 'estagio'>('aproveitamento');
   const [printDeclType, setPrintDeclType] = useState<'decl_escolaridade' | 'decl_ctransp' | 'decl_vacina' | null>(null);
   
   // Local state for simulated uploads
@@ -139,6 +140,20 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
             >
               <Printer className="h-4 w-4" /> Exportar Ficha de Aproveitamento
             </button>
+
+            <button
+              type="button"
+              id="student-view-internships-btn"
+              onClick={() => setActiveSubTab('estagio')}
+              className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wide transition-all cursor-pointer select-none border shadow-md active:scale-95 ${
+                activeSubTab === 'estagio'
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-amber-500/20 font-black'
+                  : 'bg-white hover:bg-slate-100 text-amber-700 dark:bg-slate-800 dark:text-amber-400 border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              <Briefcase className="h-4 w-4 text-amber-500 shrink-0" />
+              <span>Acompanhar Estágios</span>
+            </button>
           </div>
         </div>
       </div>
@@ -179,6 +194,16 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
               }`}
             >
               📁 Meus Documentos
+            </button>
+            <button
+              onClick={() => setActiveSubTab('estagio')}
+              className={`px-4 py-2 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all cursor-pointer whitespace-nowrap ${
+                activeSubTab === 'estagio'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              💼 Meus Estágios
             </button>
           </div>
 
@@ -477,6 +502,168 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                     );
                   })}
                 </div>
+              </div>
+            );
+          })()}
+
+          {/* TAB 4: ESTÁGIO (Student Tracking Portal) */}
+          {activeSubTab === 'estagio' && (() => {
+            const courseId = courseInfo?.id || '';
+            const courseName = courseInfo?.name || '';
+            const components = getInternshipComponentsByCourse(courseId, courseName);
+            const studentInternships = internships.filter(r => r.studentId === activeStudent.id);
+
+            // Calculations
+            const totalRequiredHrs = components.reduce((sum, c) => sum + c.workload, 0);
+            
+            // Completed is where grade is launched (grade is not null)
+            const completedComponents = components.filter(c => {
+              const record = studentInternships.find(r => r.subjectName === c.name);
+              return record && record.grade !== null;
+            });
+            const completedHrs = completedComponents.reduce((sum, c) => sum + c.workload, 0);
+            const completionPercent = totalRequiredHrs > 0 ? Math.round((completedHrs / totalRequiredHrs) * 100) : 0;
+
+            // Average grade of completed components
+            const gradedRecords = studentInternships.filter(r => r.grade !== null);
+            const averageGrade = gradedRecords.length > 0 
+              ? (gradedRecords.reduce((sum, r) => sum + (r.grade || 0), 0) / gradedRecords.length).toFixed(2)
+              : null;
+
+            return (
+              <div className="space-y-5 animate-fade-in">
+                <div>
+                  <h3 className="font-extrabold text-slate-800 dark:text-white text-base">Controle de Estágios Supervisionados</h3>
+                  <p className="text-xs text-slate-400">Acompanhe seu progresso, locais de alocação e notas finais de estágio homologadas pela secretaria.</p>
+                </div>
+
+                {components.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                    Seu curso atual não possui uma grade de estágios supervisionados curricular associada.
+                  </div>
+                ) : (
+                  <>
+                    {/* Visual Progress Dashboard Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      
+                      {/* Workload Progress Card */}
+                      <div className="bg-slate-50 dark:bg-slate-850/40 border border-slate-200/60 dark:border-slate-800/60 p-4 rounded-2xl flex flex-col justify-between space-y-2">
+                        <div>
+                          <span className="block text-[9px] font-black uppercase tracking-widest text-slate-400">Progresso de Carga Horária</span>
+                          <strong className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white">
+                            {completedHrs}h <span className="text-slate-400 text-xs sm:text-sm font-bold">/ {totalRequiredHrs}h</span>
+                          </strong>
+                        </div>
+                        {/* Progress Bar */}
+                        <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                          <div 
+                            className="bg-amber-500 h-full rounded-full transition-all duration-500"
+                            style={{ width: `${completionPercent}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-[10px] font-extrabold text-amber-600 dark:text-amber-400 uppercase">
+                          {completionPercent}% Concluído
+                        </span>
+                      </div>
+
+                      {/* Completed Components Card */}
+                      <div className="bg-slate-50 dark:bg-slate-850/40 border border-slate-200/60 dark:border-slate-800/60 p-4 rounded-2xl flex flex-col justify-between space-y-2">
+                        <div>
+                          <span className="block text-[9px] font-black uppercase tracking-widest text-slate-400">Componentes Concluídos</span>
+                          <strong className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white">
+                            {completedComponents.length} <span className="text-slate-400 text-xs sm:text-sm font-bold">/ {components.length}</span>
+                          </strong>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                          <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                          <span>Componentes homologados</span>
+                        </div>
+                      </div>
+
+                      {/* Internship GPA Card */}
+                      <div className="bg-slate-50 dark:bg-slate-850/40 border border-slate-200/60 dark:border-slate-800/60 p-4 rounded-2xl flex flex-col justify-between space-y-2">
+                        <div>
+                          <span className="block text-[9px] font-black uppercase tracking-widest text-slate-400">Média Geral do Estágio</span>
+                          <strong className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white">
+                            {averageGrade ? averageGrade : 'N/A'}
+                          </strong>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                          <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                          <span>Aproveitamento homologado</span>
+                        </div>
+                      </div>
+
+                    </div>
+
+                    {/* Breakdown list */}
+                    <div className="space-y-3">
+                      <h4 className="font-extrabold text-slate-700 dark:text-white text-xs uppercase tracking-wide">
+                        Detalhamento por Componente
+                      </h4>
+
+                      <div className="space-y-3">
+                        {components.map(comp => {
+                          const record = studentInternships.find(r => r.subjectName === comp.name);
+                          const isCompleted = record && record.grade !== null;
+
+                          return (
+                            <div 
+                              key={comp.name} 
+                              className="p-4 bg-slate-50/50 dark:bg-slate-850/40 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                            >
+                              <div className="space-y-1 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-xs font-black text-slate-800 dark:text-slate-200">
+                                    {comp.name}
+                                  </p>
+                                  <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-[9px] font-black text-slate-500 dark:text-slate-400 rounded uppercase">
+                                    {comp.workload}h
+                                  </span>
+                                </div>
+                                
+                                <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                                  <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                  <span className={record?.location ? 'text-slate-600 dark:text-slate-350 font-medium' : 'italic text-amber-500'}>
+                                    {record?.location ? `Realizado em: ${record.location}` : 'Pendente de lançamento'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
+                                {/* Completion Status Badge */}
+                                <span className={`px-2 py-0.5 rounded-md text-[9px] font-black tracking-wide shrink-0 ${
+                                  isCompleted
+                                    ? 'bg-emerald-100 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200/30'
+                                    : 'bg-amber-100/70 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 border border-amber-200/30'
+                                }`}>
+                                  {isCompleted ? '✓ CONCLUÍDO' : '🟡 PENDENTE'}
+                                </span>
+
+                                {/* Grade display */}
+                                <div className="text-right shrink-0 min-w-[50px]">
+                                  {isCompleted ? (
+                                    <span className={`px-2 py-0.5 text-xs font-black rounded ${
+                                      (record?.grade || 0) >= 7
+                                        ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                        : 'bg-rose-500/15 text-rose-600 dark:text-rose-400'
+                                    }`}>
+                                      Nota: {record?.grade?.toFixed(1)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 font-bold italic">
+                                      Nota Pendente
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             );
           })()}
