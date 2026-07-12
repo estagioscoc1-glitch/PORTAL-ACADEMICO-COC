@@ -8,7 +8,7 @@ import { useApp } from '../context/AppContext';
 import { 
   BookOpen, Calendar, HelpCircle, BellRing, ClipboardList, CheckCircle2, 
   ChevronRight, CalendarDays, Inbox, AlertCircle, RefreshCw,
-  Maximize2, Minimize2, X, Minus, ExternalLink, AlertTriangle, Clock,
+  Maximize2, Minimize2, X, Minus, ExternalLink, AlertTriangle, Clock, Sparkles,
   FileText, Image as ImageIcon, Mic, Download
 } from 'lucide-react';
 import { GradeJournal } from './GradeJournal';
@@ -211,7 +211,26 @@ export const TeacherDashboard: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href="https://gestordecarreira-ia.colegiooswaldocruz.com.br/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-4.5 py-2.5 bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-350 hover:to-teal-350 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-emerald-400/30 hover:shadow-emerald-400/50 active:scale-[0.98] transition-all cursor-pointer select-none uppercase tracking-wide border-2 border-emerald-300"
+          >
+            <Sparkles className="h-4 w-4 text-slate-950 animate-pulse" />
+            <span>OC Carreira IA</span>
+            <ExternalLink className="h-3.5 w-3.5 text-slate-950" />
+          </a>
+          <a
+            href="https://colegiooswaldocruz-acw.alunoead.com.br/login/index.php"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-4.5 py-2.5 bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-450 hover:to-blue-450 text-white font-black rounded-xl text-xs shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 active:scale-[0.98] transition-all cursor-pointer select-none uppercase tracking-wide border-2 border-indigo-400"
+          >
+            <ExternalLink className="h-4 w-4 text-white" />
+            <span>Acesso Plataforma EAD</span>
+          </a>
           <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-850 border border-slate-150 dark:border-slate-800 rounded-2xl text-center min-w-[100px]">
             <span className="block text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Diários Ativos</span>
             <span className="block text-lg font-black text-blue-700 dark:text-blue-400 mt-0.5">

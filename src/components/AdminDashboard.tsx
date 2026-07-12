@@ -11,10 +11,11 @@ import {
   XCircle, Inbox, Send, Calendar, FolderPlus, BellRing, Settings, UserPlus, 
   Search, Printer, AlertTriangle, ChevronRight, HelpCircle,
   Database, Shield, ShieldCheck, UploadCloud, Lock, Unlock, Server, RefreshCw, Download, Upload, Key,
-  Trash2, History, Edit2, Filter, ExternalLink, Minimize2, Maximize2, X, Minus, FileText,
+  Trash2, History, Edit2, Filter, ExternalLink, Minimize2, Maximize2, X, Minus, FileText, Sparkles,
   Paperclip, Mic, Square, Play, Pause, Image as ImageIcon
 } from 'lucide-react';
 import { SpreadsheetImporter } from './SpreadsheetImporter';
+import { HistoricalDataImporter } from './HistoricalDataImporter';
 import { PrintModal } from './PrintModal';
 import { GradeJournal } from './GradeJournal';
 import { AttendanceJournal } from './AttendanceJournal';
@@ -610,8 +611,27 @@ export const AdminDashboard: React.FC = () => {
           </p>
         </div>
 
-        {/* Right Side: Quick Access to Internship Management */}
+        {/* Right Side: Quick Access to Internship Management & EAD Platform */}
         <div className="flex flex-wrap items-center gap-3">
+          <a
+            href="https://gestordecarreira-ia.colegiooswaldocruz.com.br/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-4.5 py-2.5 bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-350 hover:to-teal-350 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-emerald-400/30 hover:shadow-emerald-400/50 active:scale-[0.98] transition-all cursor-pointer select-none uppercase tracking-wide border-2 border-emerald-300"
+          >
+            <Sparkles className="h-4 w-4 text-slate-950 animate-pulse" />
+            <span>OC Carreira IA</span>
+            <ExternalLink className="h-3.5 w-3.5 text-slate-950" />
+          </a>
+          <a
+            href="https://colegiooswaldocruz-acw.alunoead.com.br/login/index.php"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-4.5 py-2.5 bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-450 hover:to-blue-450 text-white font-black rounded-xl text-xs shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 active:scale-[0.98] transition-all cursor-pointer select-none uppercase tracking-wide border-2 border-indigo-400"
+          >
+            <ExternalLink className="h-4 w-4 text-white" />
+            <span>Acesso Plataforma EAD</span>
+          </a>
           <button
             type="button"
             onClick={() => setActiveTab('estagio')}
@@ -2605,6 +2625,7 @@ export const AdminDashboard: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
         >
           <SpreadsheetImporter />
+          <HistoricalDataImporter />
         </motion.div>
       )}
 

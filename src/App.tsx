@@ -8,9 +8,18 @@ import { AppProvider, useApp } from './context/AppContext';
 import { UserRole, User } from './types';
 import { LoginScreen } from './components/LoginScreen';
 import { FirstLoginPasswordChange } from './components/FirstLoginPasswordChange';
-import { AdminDashboard } from './components/AdminDashboard';
-import { TeacherDashboard } from './components/TeacherDashboard';
-import { StudentDashboard } from './components/StudentDashboard';
+const AdminDashboard = React.lazy(() => import('./components/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const TeacherDashboard = React.lazy(() => import('./components/TeacherDashboard').then(m => ({ default: m.TeacherDashboard })));
+const StudentDashboard = React.lazy(() => import('./components/StudentDashboard').then(m => ({ default: m.StudentDashboard })));
+
+const DashboardLoadingFallback = () => (
+  <div className="flex items-center justify-center p-12 min-h-[300px]">
+    <div className="flex flex-col items-center space-y-4">
+      <div className="w-10 h-10 border-4 border-slate-200 dark:border-slate-800 rounded-full animate-spin border-t-blue-600 dark:border-t-blue-400"></div>
+      <p className="text-xs text-slate-400 font-bold uppercase tracking-wider animate-pulse">Carregando Painel...</p>
+    </div>
+  </div>
+);
 import { Logo } from './components/Logo';
 import { PrintModal } from './components/PrintModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -348,11 +357,13 @@ function MainAppLayout() {
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
           >
-            {activeDisplayRole === UserRole.ADMIN && <AdminDashboard />}
-            {activeDisplayRole === UserRole.TEACHER && <TeacherDashboard />}
-            {activeDisplayRole === UserRole.STUDENT && (
-              <StudentDashboard studentId={simulatedStudentId || currentUser.id} />
-            )}
+            <React.Suspense fallback={<DashboardLoadingFallback />}>
+              {activeDisplayRole === UserRole.ADMIN && <AdminDashboard />}
+              {activeDisplayRole === UserRole.TEACHER && <TeacherDashboard />}
+              {activeDisplayRole === UserRole.STUDENT && (
+                <StudentDashboard studentId={simulatedStudentId || currentUser.id} />
+              )}
+            </React.Suspense>
           </motion.div>
         </AnimatePresence>
       </main>

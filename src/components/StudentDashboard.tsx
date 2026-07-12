@@ -132,6 +132,16 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
               <ExternalLink className="h-3.5 w-3.5 text-slate-950" />
             </a>
 
+            <a
+              href="https://colegiooswaldocruz-acw.alunoead.com.br/login/index.php"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-4.5 py-2.5 bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-450 hover:to-blue-450 text-white font-black rounded-xl text-xs shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 active:scale-[0.98] transition-all cursor-pointer select-none uppercase tracking-wide border-2 border-indigo-400"
+            >
+              <ExternalLink className="h-4 w-4 text-white" />
+              <span>Acesso Plataforma EAD</span>
+            </a>
+
             <button
               type="button"
               id="print-individual-bulletin-btn"

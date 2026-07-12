@@ -63,6 +63,15 @@ export interface BackupScheduleConfig {
   hour: string; // e.g. "02:00"
 }
 
+export interface HistoricalImportSummary {
+  coursesCreated: number;
+  classesCreated: number;
+  subjectsCreated: number;
+  studentsCreated: number;
+  studentsRecognized: number;
+  gradesImported: number;
+}
+
 interface AppContextType {
   isLoading: boolean;
   currentUser: User | null;
@@ -149,6 +158,7 @@ interface AppContextType {
   importStudents: (studentList: { name: string, enrollment: string, email: string }[], targetClassId: string) => void;
   importSubjects: (subjectList: { name: string, workload: number }[], courseId: string, module: number) => void;
   importConcepts: (conceptList: ConceptRange[]) => void;
+  importHistoricalData: (data: any) => HistoricalImportSummary;
 
   // Security and Backups
   securityLogs: any[];
@@ -1455,6 +1465,211 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setConceptRanges(conceptList);
   };
 
+  const importHistoricalData = (jsonData: any): HistoricalImportSummary => {
+    if (!jsonData || !Array.isArray(jsonData.classes)) {
+      throw new Error("Formato inválido: O JSON deve conter um array 'classes'.");
+    }
+
+    let coursesCreated = 0;
+    let classesCreated = 0;
+    let subjectsCreated = 0;
+    let studentsCreated = 0;
+    let studentsRecognized = 0;
+    let gradesImported = 0;
+
+    let currentCourses = [...courses];
+    let currentClasses = [...classes];
+    let currentSubjects = [...subjects];
+    let currentUsers = [...users];
+    let currentGrades = [...grades];
+    let currentPeriods = [...periods];
+    let currentDirectAbsences = { ...directAbsences };
+
+    jsonData.classes.forEach((clsItem: any) => {
+      const { className, courseName, shift, module: clsModule, year, semester, subjects: clsSubjects } = clsItem;
+
+      // 1. Course Check / Creation
+      let course = currentCourses.find(c => c.name.trim().toLowerCase() === courseName.trim().toLowerCase());
+      if (!course) {
+        course = {
+          id: `crs_hist_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+          name: courseName.toUpperCase().trim(),
+          description: `CURSO HISTÓRICO ${courseName.toUpperCase().trim()}`
+        };
+        currentCourses.push(course);
+        coursesCreated++;
+      }
+
+      // 2. ClassSection Check / Creation
+      let classSection = currentClasses.find(c => 
+        c.name.trim().toLowerCase() === className.trim().toLowerCase() &&
+        c.year === Number(year) &&
+        c.semester === Number(semester) &&
+        c.module === Number(clsModule)
+      );
+      if (!classSection) {
+        classSection = {
+          id: `class_hist_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+          name: className.toUpperCase().trim(),
+          code: `HIST-${year}-${semester}-${clsModule}`,
+          courseId: course.id,
+          shift: shift as Shift,
+          module: Number(clsModule),
+          year: Number(year),
+          semester: Number(semester),
+          closedS1: true,
+          closedS2: true,
+          closedDefinitive: true
+        };
+        currentClasses.push(classSection);
+        classesCreated++;
+      }
+
+      // 3. Period check/creation
+      const periodStr = `${year}/${semester}`;
+      if (!currentPeriods.includes(periodStr)) {
+        currentPeriods.push(periodStr);
+      }
+
+      // 4. For each subject within the class
+      if (Array.isArray(clsSubjects)) {
+        clsSubjects.forEach((subItem: any) => {
+          const { subjectName, records } = subItem;
+          let subject = currentSubjects.find(s => 
+            s.name.trim().toLowerCase() === subjectName.trim().toLowerCase() &&
+            s.courseId === course!.id
+          );
+          if (!subject) {
+            subject = {
+              id: `sub_hist_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+              name: subjectName.toUpperCase().trim(),
+              courseId: course!.id,
+              module: Number(clsModule),
+              workload: 80
+            };
+            currentSubjects.push(subject);
+            subjectsCreated++;
+          }
+
+          // 5. For each record within the subject
+          if (Array.isArray(records)) {
+            records.forEach((recItem: any) => {
+              const { studentName, s1, s2, afc, extra, conselho, pf, faltas, concept, result } = recItem;
+
+              const cleanName = (nameStr: string) => nameStr.trim().replace(/\s+/g, ' ').toLowerCase();
+              const cleanedTargetName = cleanName(studentName);
+
+              let student = currentUsers.find(u => 
+                u.role === UserRole.STUDENT && 
+                cleanName(u.name) === cleanedTargetName
+              );
+
+              let studentId = '';
+              if (student) {
+                studentId = student.id;
+                studentsRecognized++;
+              } else {
+                studentId = `std_hist_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                
+                const normalizedUsername = studentName
+                  .toLowerCase()
+                  .normalize("NFD")
+                  .replace(/[\u0300-\u036f]/g, "")
+                  .replace(/[^a-z0-9 ]/g, "")
+                  .trim()
+                  .replace(/\s+/g, ".");
+
+                const finalUsername = `${normalizedUsername}.${Math.floor(100 + Math.random() * 900)}`;
+                
+                student = {
+                  id: studentId,
+                  name: studentName.toUpperCase().trim(),
+                  username: finalUsername,
+                  email: `${normalizedUsername}@historico.oc.com`,
+                  role: UserRole.STUDENT,
+                  active: true,
+                  classId: classSection!.id
+                };
+                currentUsers.push(student);
+                studentsCreated++;
+              }
+
+              // 6. GradeRecord Check / Creation / Update
+              let gradeRecord = currentGrades.find(g => 
+                g.studentId === studentId &&
+                g.subjectId === subject!.id &&
+                g.classId === classSection!.id
+              );
+
+              if (gradeRecord) {
+                gradeRecord.s1 = Number(s1);
+                gradeRecord.s2 = Number(s2);
+                gradeRecord.afc = afc !== null ? Number(afc) : null;
+                gradeRecord.extra = extra !== null ? Number(extra) : null;
+                gradeRecord.conselho = conselho !== null ? Number(conselho) : null;
+                gradeRecord.pf = Number(pf);
+                gradeRecord.concept = concept || 'D';
+                gradeRecord.result = result as any || 'Pendente';
+              } else {
+                gradeRecord = {
+                  id: `g_hist_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                  studentId,
+                  subjectId: subject!.id,
+                  classId: classSection!.id,
+                  av1: null, av2: null, av3: null, recS1: null, s1: Number(s1),
+                  av4: null, av5: null, av6: null, recS2: null, s2: Number(s2),
+                  afc: afc !== null ? Number(afc) : null,
+                  extra: extra !== null ? Number(extra) : null,
+                  conselho: conselho !== null ? Number(conselho) : null,
+                  pf: Number(pf),
+                  concept: concept || 'D',
+                  result: result as any || 'Pendente'
+                };
+                currentGrades.push(gradeRecord);
+              }
+              gradesImported++;
+
+              // 7. Absences Register
+              const absenceKey = `${classSection!.id}_${subject!.id}_${studentId}`;
+              currentDirectAbsences[absenceKey] = Number(faltas || 0);
+            });
+          }
+        });
+      }
+    });
+
+    setCourses(currentCourses);
+    setClasses(currentClasses);
+    setSubjects(currentSubjects);
+    setUsers(currentUsers);
+    setGrades(currentGrades);
+    setPeriods(currentPeriods);
+    setDirectAbsences(currentDirectAbsences);
+
+    safeLocalStorage.setItem('oc_courses', JSON.stringify(currentCourses));
+    safeLocalStorage.setItem('oc_classes', JSON.stringify(currentClasses));
+    safeLocalStorage.setItem('oc_subjects', JSON.stringify(currentSubjects));
+    safeLocalStorage.setItem('oc_users', JSON.stringify(currentUsers));
+    safeLocalStorage.setItem('oc_grades', JSON.stringify(currentGrades));
+    safeLocalStorage.setItem('oc_periods', JSON.stringify(currentPeriods));
+    safeLocalStorage.setItem('oc_direct_absences', JSON.stringify(currentDirectAbsences));
+
+    addSecurityLog(
+      'IMPORTACAO_HISTORICA', 
+      `Importação de dados históricos finalizada: ${classesCreated} turmas, ${subjectsCreated} disciplinas, ${studentsCreated} novos alunos, ${studentsRecognized} alunos reconhecidos, ${gradesImported} notas importadas.`, 
+      'medium'
+    );
+
+    return {
+      coursesCreated,
+      classesCreated,
+      subjectsCreated,
+      studentsCreated,
+      studentsRecognized,
+      gradesImported
+    };
+  };
+
   const updateDeclarationConfig = (type: 'escolaridade' | 'ctransp', fields: { startDate: string, endDate: string }) => {
     setDeclarationConfigs(prev => ({
       ...prev,
@@ -2071,7 +2286,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       directAbsences, updateStudentAbsences,
       toggleJournalStatus, sendMessage, addNotification, clearNotifications,
       getStudentAbsences, getStudentAttendanceGrid,
-      importStudents, importSubjects, importConcepts,
+      importStudents, importSubjects, importConcepts, importHistoricalData,
       securityLogs, cloudBackupStatus, lastCloudBackupTime,
       addSecurityLog, triggerLocalBackup, triggerCloudBackup,
       restoreFromBackup, restoreFromCloud, failedAttemptsMap, resetFailedAttempts,

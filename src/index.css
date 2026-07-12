@@ -8,6 +8,11 @@
 
 @variant dark (&:where(.dark, .dark *));
 
+html, body {
+  touch-action: manipulation;
+  overscroll-behavior-y: contain;
+}
+
 /* Hide number input spinners/arrows globally for a cleaner look */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
@@ -63,8 +68,8 @@ html.dark select option {
 }
 
 /* Force all inputs inside print-preview-area to stay light-themed, even under html.dark */
-html.dark .print-preview-area input,
-.print-preview-area input {
+html.dark .print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+.print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]) {
   background-color: transparent !important;
   -webkit-appearance: none;
   appearance: none;
@@ -72,20 +77,20 @@ html.dark .print-preview-area input,
 }
 
 /* Restore custom text colors (e.g. text-gray-400, text-red-600, text-black) in print preview inputs */
-html.dark .print-preview-area input.text-red-600,
-.print-preview-area input.text-red-600 {
+html.dark .print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]).text-red-600,
+.print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]).text-red-600 {
   color: #dc2626 !important;
 }
 
-html.dark .print-preview-area input.text-gray-400,
-.print-preview-area input.text-gray-400 {
+html.dark .print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]).text-gray-400,
+.print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]).text-gray-400 {
   color: #9ca3af !important;
 }
 
-html.dark .print-preview-area input.text-black,
-.print-preview-area input.text-black,
-html.dark .print-preview-area input:not(.text-red-600):not(.text-gray-400),
-.print-preview-area input:not(.text-red-600):not(.text-gray-400) {
+html.dark .print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]).text-black,
+.print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]).text-black,
+html.dark .print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not(.text-red-600):not(.text-gray-400),
+.print-preview-area input:not([type="hidden"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not(.text-red-600):not(.text-gray-400) {
   color: #000000 !important;
 }
 

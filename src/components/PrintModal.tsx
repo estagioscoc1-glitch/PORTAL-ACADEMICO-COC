@@ -258,7 +258,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
     <img
       src="https://raw.githubusercontent.com/estagioscoc1-glitch/PORTAL-ACADEMICO-COC/main/public/logo-colegio-oswaldo-cruz.png"
       alt="Colégio Oswaldo Cruz"
-      className="h-16 w-auto object-contain block select-none"
+      className="h-16 w-auto max-w-[850px] object-contain block select-none"
       referrerPolicy="no-referrer"
     />
   );
@@ -1516,7 +1516,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                         <img 
                           src="https://raw.githubusercontent.com/estagioscoc1-glitch/PORTAL-ACADEMICO-COC/main/public/logo-colegio-oswaldo-cruz.png" 
                           alt="Cabeçalho Colégio Oswaldo Cruz" 
-                          className="w-full max-h-24 object-contain block"
+                          className="w-full max-h-24 max-w-[850px] object-contain block"
                           referrerPolicy="no-referrer"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none';
