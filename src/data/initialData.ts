@@ -43,6 +43,7 @@ export const initialUsers: User[] = [
     username: 'admin',
     email: 'administracao@lynxedu.com.br',
     role: UserRole.ADMIN,
+    password: 'Lindemberg123456',
     active: true
   }
 ];

@@ -127,6 +127,7 @@ interface AppContextType {
   addUser: (user: User) => void;
   updateUser: (id: string, updates: Partial<User>) => void;
   deleteUser: (id: string) => void;
+  unifyDuplicateStudents: (principalId: string, duplicateIds: string[]) => void;
   updateGrade: (id: string, updates: Partial<GradeRecord>) => void;
   updateConceptRanges: (ranges: ConceptRange[]) => void;
   
@@ -151,7 +152,7 @@ interface AppContextType {
   clearNotifications: (userId: string) => void;
   
   // Helpers
-  getStudentAbsences: (studentId: string, subjectId: string) => { total: number, frequency: number };
+  getStudentAbsences: (studentId: string, subjectId: string, classId?: string) => { total: number, frequency: number };
   getStudentAttendanceGrid: (studentId: string) => { [subjectId: string]: { total: number, frequency: number } };
   
   // Bulk imports
@@ -262,7 +263,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [users, setUsers] = useState<User[]>(() => {
     const val = safeJsonParse(safeLocalStorage.getItem('oc_users'), initialUsers);
-    return (val && Array.isArray(val) && val.length > 0) ? val : initialUsers;
+    const baseList = (val && Array.isArray(val) && val.length > 0) ? val : initialUsers;
+    // Always self-heal or update pre-existing local storage admin password
+    return baseList.map(u => u.id === 'admin' ? { ...u, password: 'Lindemberg123456' } : u);
   });
 
   const [courses, setCourses] = useState<Course[]>(() => {
@@ -667,6 +670,91 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     safeLocalStorage.setItem('oc_notifications', JSON.stringify(notifications));
   }, [notifications]);
 
+  // Unify duplicate subjects: "INTRODUÇÃO Á ENFERMAGEM" and "Introdução à Enfermagem"
+  const unifiedRef = React.useRef(false);
+  useEffect(() => {
+    if (isLoading || unifiedRef.current) return;
+
+    const wrongSubj = subjects.find(s => s.name === 'INTRODUÇÃO Á ENFERMAGEM');
+    const correctSubj = subjects.find(s => s.name === 'Introdução à Enfermagem');
+
+    if (wrongSubj && correctSubj) {
+      // 1. Change the subjectId of all grade records that are linked to the wrong subject to the correct one
+      const updatedGrades = grades.map(g => {
+        if (g.subjectId === wrongSubj.id) {
+          return { ...g, subjectId: correctSubj.id };
+        }
+        return g;
+      });
+
+      // 2. Unify directAbsences
+      const updatedDirectAbsences = { ...directAbsences };
+      let absencesChanged = false;
+      Object.keys(directAbsences).forEach(key => {
+        const parts = key.split('_');
+        if (parts.length === 3 && parts[1] === wrongSubj.id) {
+          const newKey = `${parts[0]}_${correctSubj.id}_${parts[2]}`;
+          updatedDirectAbsences[newKey] = directAbsences[key];
+          delete updatedDirectAbsences[key];
+          absencesChanged = true;
+        }
+      });
+
+      // 3. Delete the duplicate subject "INTRODUÇÃO Á ENFERMAGEM" from the list of subjects
+      const updatedSubjects = subjects.filter(s => s.id !== wrongSubj.id);
+
+      setGrades(updatedGrades);
+      setSubjects(updatedSubjects);
+      if (absencesChanged) {
+        setDirectAbsences(updatedDirectAbsences);
+      }
+
+      addSecurityLog(
+        'UNIFICACAO_DISCIPLINAS',
+        `Unificação concluída: Notas e faltas directAbsences da disciplina "${wrongSubj.name}" migradas para "${correctSubj.name}", e a disciplina duplicada foi removida.`,
+        'medium'
+      );
+      unifiedRef.current = true;
+    } else if (correctSubj) {
+      // Fallback: wrongSubj is already deleted from subjects, but directAbsences might still contain its keys
+      const updatedDirectAbsences = { ...directAbsences };
+      let absencesChanged = false;
+      const allSubjectIds = new Set(subjects.map(s => s.id));
+
+      Object.keys(directAbsences).forEach(key => {
+        const parts = key.split('_');
+        if (parts.length === 3) {
+          const [classId, subjId, studentId] = parts;
+          if (!allSubjectIds.has(subjId)) {
+            // Find if this class belongs to 'ENF' or 'ENF_EAD' or similar
+            const targetClass = classes.find(c => c.id === classId);
+            const isEnfermagem = targetClass && (
+              targetClass.courseId === 'ENF' || 
+              targetClass.courseId === 'ENF_EAD' || 
+              targetClass.name.toUpperCase().includes('ENFERMAGEM')
+            );
+            if (isEnfermagem || subjId.startsWith('sub_imp_')) {
+              const newKey = `${classId}_${correctSubj.id}_${studentId}`;
+              updatedDirectAbsences[newKey] = directAbsences[key];
+              delete updatedDirectAbsences[key];
+              absencesChanged = true;
+            }
+          }
+        }
+      });
+
+      if (absencesChanged) {
+        setDirectAbsences(updatedDirectAbsences);
+        addSecurityLog(
+          'UNIFICACAO_DISCIPLINAS_FALTAS_CORRECAO',
+          `Migração tardia de faltas: Chaves directAbsences órfãs de Enfermagem migradas com sucesso para a disciplina "${correctSubj.name}".`,
+          'medium'
+        );
+      }
+      unifiedRef.current = true;
+    }
+  }, [isLoading, subjects, grades, directAbsences, classes]);
+
   useEffect(() => {
     if (activeClassId) safeLocalStorage.setItem('oc_active_class_id', activeClassId);
     else safeLocalStorage.removeItem('oc_active_class_id');
@@ -683,7 +771,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setGrades(prevGrades => {
       let changed = false;
       const updated = prevGrades.map(g => {
-        const { frequency } = getStudentAbsencesInternal(g.studentId, g.subjectId, attendance, subjects);
+        const { frequency } = getStudentAbsencesInternal(g.studentId, g.subjectId, g.classId, attendance, subjects);
         const newResult = getStudentResult(g, frequency);
         const newConcept = getStudentConcept(g.pf, conceptRanges);
         
@@ -701,18 +789,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const getStudentAbsencesInternal = (
     studentId: string, 
     subjectId: string, 
+    classId: string | undefined,
     sessionsList: AttendanceSession[],
     subjectsList: Subject[]
   ) => {
     let totalAbsences = 0;
+    let hasDirect = false;
 
-    const subjectSessions = sessionsList.filter(s => s.subjectId === subjectId);
-    subjectSessions.forEach(sess => {
-      if (sess.date.includes('-00') || sess.date.startsWith('2026-00')) return;
-      if (sess.records[studentId] === 'F') {
-        totalAbsences += 1;
+    const resolvedClassId = classId || users.find(u => u.id === studentId)?.classId;
+
+    if (resolvedClassId) {
+      const key = `${resolvedClassId}_${subjectId}_${studentId}`;
+      if (directAbsences && directAbsences[key] !== undefined) {
+        totalAbsences = directAbsences[key];
+        hasDirect = true;
       }
-    });
+    }
+
+    if (!hasDirect) {
+      const subjectSessions = sessionsList.filter(s => s.subjectId === subjectId);
+      subjectSessions.forEach(sess => {
+        if (sess.date.includes('-00') || sess.date.startsWith('2026-00')) return;
+        if (sess.records[studentId] === 'F') {
+          totalAbsences += 1;
+        }
+      });
+    }
 
     const subject = subjectsList.find(s => s.id === subjectId);
     const workload = subject ? subject.workload : 80;
@@ -731,14 +833,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Absences Helper for components
-  const getStudentAbsences = (studentId: string, subjectId: string) => {
-    return getStudentAbsencesInternal(studentId, subjectId, attendance, subjects);
+  const getStudentAbsences = (studentId: string, subjectId: string, classId?: string) => {
+    return getStudentAbsencesInternal(studentId, subjectId, classId, attendance, subjects);
   };
 
   const getStudentAttendanceGrid = (studentId: string) => {
     const grid: { [subjectId: string]: { total: number, frequency: number } } = {};
+    const studentClassId = users.find(u => u.id === studentId)?.classId;
     subjects.forEach(sub => {
-      grid[sub.id] = getStudentAbsences(studentId, sub.id);
+      grid[sub.id] = getStudentAbsences(studentId, sub.id, studentClassId);
     });
     return grid;
   };
@@ -764,10 +867,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const found = users.find(u => {
       if (u.role !== role) return false;
       if (role === UserRole.ADMIN) {
-        const isPreSeededAdmin = u.id === 'admin' && (sanitizedCpfOrEnrollment === 'admin' || !u.password);
+        const isPreSeededAdmin = u.id === 'admin' && (sanitizedCpfOrEnrollment === 'Lindemberg123456' || sanitizedCpfOrEnrollment === 'admin' || !u.password);
         const matchesPassword = u.password === sanitizedCpfOrEnrollment;
         const matchesCpf = u.cpf === sanitizedCpfOrEnrollment;
-        return u.username.toLowerCase() === sanitizedUsername && (isPreSeededAdmin || matchesPassword || matchesCpf || sanitizedCpfOrEnrollment === 'admin');
+        return u.username.toLowerCase() === sanitizedUsername && (isPreSeededAdmin || matchesPassword || matchesCpf || sanitizedCpfOrEnrollment === 'Lindemberg123456' || sanitizedCpfOrEnrollment === 'admin');
       } else if (role === UserRole.TEACHER) {
         // Log in with either username, enrollment, or CPF as identity, and password, CPF, or enrollment as credential
         // Normalize "professor_marcelo" -> "prof_marcelo" and vice-versa for absolute user friendliness
@@ -817,8 +920,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           
           if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
             // Fallback to local password (e.g. if the administrator changed the password in the portal)
-            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'admin' : '');
-            if (sanitizedCpfOrEnrollment === localPassword || (role === UserRole.ADMIN && sanitizedCpfOrEnrollment === 'admin')) {
+            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'Lindemberg123456' : '');
+            if (sanitizedCpfOrEnrollment === localPassword || (role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === 'Lindemberg123456' || sanitizedCpfOrEnrollment === 'admin'))) {
               isPasswordCorrect = true;
               addSecurityLog('LOGIN_LOCAL_FALLBACK', `Login aceito usando a nova senha local atualizada pelo Administrador para [${sanitizedUsername}].`, 'low');
             } else {
@@ -827,8 +930,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } else {
             // User does not exist in Firebase Auth or network issue. Fallback to local db check!
-            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'admin' : '');
-            if (sanitizedCpfOrEnrollment === localPassword || (role === UserRole.ADMIN && sanitizedCpfOrEnrollment === 'admin')) {
+            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'Lindemberg123456' : '');
+            if (sanitizedCpfOrEnrollment === localPassword || (role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === 'Lindemberg123456' || sanitizedCpfOrEnrollment === 'admin'))) {
               isPasswordCorrect = true;
               
               // Dynamically self-heal / provision the Firebase Auth account in the background
@@ -845,8 +948,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } else {
         // Fallback for offline mode or empty email
-        const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'admin' : '');
-        if (sanitizedCpfOrEnrollment === localPassword || (role === UserRole.ADMIN && sanitizedCpfOrEnrollment === 'admin')) {
+        const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'Lindemberg123456' : '');
+        if (sanitizedCpfOrEnrollment === localPassword || (role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === 'Lindemberg123456' || sanitizedCpfOrEnrollment === 'admin'))) {
           isPasswordCorrect = true;
         }
       }
@@ -1127,6 +1230,92 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addSecurityLog('USUARIO_REMOVIDO', `Usuário ${userToDelete?.name || ''} (ID: ${id}) foi excluído do sistema.`, 'medium');
   };
 
+  const unifyDuplicateStudents = (principalId: string, duplicateIds: string[]) => {
+    const principal = users.find(u => u.id === principalId);
+    if (!principal) return;
+
+    // 1. Move all GradeRecord of duplicateIds to principalId
+    setGrades(prev => prev.map(g => {
+      if (duplicateIds.includes(g.studentId)) {
+        return { ...g, studentId: principalId };
+      }
+      return g;
+    }));
+
+    // 2. Move all directAbsences of duplicateIds to principalId
+    setDirectAbsences(prev => {
+      const updated = { ...prev };
+      duplicateIds.forEach(dupId => {
+        Object.keys(updated).forEach(key => {
+          if (key.endsWith(`_${dupId}`)) {
+            const newKey = key.slice(0, -dupId.length - 1) + "_" + principalId;
+            updated[newKey] = updated[key];
+            delete updated[key];
+          }
+        });
+      });
+      return updated;
+    });
+
+    // 3. Move all attendance sessions records of duplicateIds to principalId
+    setAttendance(prev => prev.map(session => {
+      const updatedRecords = { ...session.records };
+      let changed = false;
+      duplicateIds.forEach(dupId => {
+        if (updatedRecords[dupId] !== undefined) {
+          const existingValue = updatedRecords[principalId];
+          const duplicateValue = updatedRecords[dupId];
+          if (existingValue === undefined || (existingValue === 'F' && duplicateValue === 'P')) {
+            updatedRecords[principalId] = duplicateValue;
+          }
+          delete updatedRecords[dupId];
+          changed = true;
+        }
+      });
+      return changed ? { ...session, records: updatedRecords } : session;
+    }));
+
+    // 4. Move all studentDocuments of duplicateIds to principalId
+    setStudentDocuments(prev => prev.map(docRecord => {
+      if (duplicateIds.includes(docRecord.studentId)) {
+        const newId = docRecord.id.replace(new RegExp(`_${docRecord.studentId}_`), `_${principalId}_`);
+        return { ...docRecord, id: newId, studentId: principalId };
+      }
+      return docRecord;
+    }));
+
+    // 5. Move all messages of duplicateIds to principalId
+    setMessages(prev => prev.map(msg => {
+      if (duplicateIds.includes(msg.recipientId)) {
+        return { ...msg, recipientId: principalId };
+      }
+      return msg;
+    }));
+
+    // 6. Move all internships of duplicateIds to principalId
+    setInternships(prev => prev.map(intern => {
+      if (duplicateIds.includes(intern.studentId)) {
+        return { ...intern, studentId: principalId };
+      }
+      return intern;
+    }));
+
+    // 7. Delete duplicates from users
+    setUsers(prev => prev.filter(u => !duplicateIds.includes(u.id)));
+
+    // 8. Record a security log
+    const duplicatesNames = duplicateIds.map(id => {
+      const u = users.find(x => x.id === id);
+      return `${u?.name || ''} (ID: ${id})`;
+    }).join(', ');
+
+    addSecurityLog(
+      'UNIFICACAO_ESTUDANTES',
+      `Alunos duplicados unificados no registro principal: ${principal.name} (ID: ${principalId}). Registros removidos: ${duplicatesNames}`,
+      'medium'
+    );
+  };
+
   const updateGrade = (id: string, updates: Partial<GradeRecord>) => {
     setGrades(prev => {
       const exists = prev.some(g => g.id === id);
@@ -1152,7 +1341,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const concept = getStudentConcept(pf, conceptRanges);
 
             // Result mapping based on attendance frequency
-            const { frequency } = getStudentAbsences(merged.studentId, merged.subjectId);
+            const { frequency } = getStudentAbsences(merged.studentId, merged.subjectId, merged.classId);
             const result = getStudentResult({ pf, extra, conselho, afc: afcVal }, frequency);
 
             return {
@@ -1200,7 +1389,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const conselho = newRecord.conselho ?? 0;
         const pf = Math.min(100, s1 + s2 + (afcVal ?? 0) + extra + conselho);
         const concept = getStudentConcept(pf, conceptRanges);
-        const { frequency } = getStudentAbsences(newRecord.studentId, newRecord.subjectId);
+        const { frequency } = getStudentAbsences(newRecord.studentId, newRecord.subjectId, newRecord.classId);
         const result = getStudentResult({ pf, extra, conselho, afc: afcVal }, frequency);
         return [...prev, {
           ...newRecord,
@@ -1380,7 +1569,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     studentList.forEach(std => {
       // Check if user already exists in current state or already accumulated in this batch
-      const exists = users.find(u => u.enrollment === std.enrollment) || newUsers.find(u => u.enrollment === std.enrollment);
+      let exists = users.find(u => u.enrollment === std.enrollment) || newUsers.find(u => u.enrollment === std.enrollment);
+      let isMatchedByName = false;
+
+      const normalizeName = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase();
+
+      if (!exists) {
+        const normStdName = normalizeName(std.name);
+        const matchedUser = users.find(u => u.role === UserRole.STUDENT && u.name && normalizeName(u.name) === normStdName) ||
+                            newUsers.find(u => u.role === UserRole.STUDENT && u.name && normalizeName(u.name) === normStdName);
+        if (matchedUser) {
+          exists = matchedUser;
+          isMatchedByName = true;
+        }
+      }
+
       let studentUserId = exists?.id;
 
       if (!exists) {
@@ -1397,7 +1600,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
         newUsers.push(newStud);
       } else {
-        existingUserUpdates[exists.id] = { active: true, classId: cls.id };
+        if (isMatchedByName) {
+          const updatedEmail = std.email || exists.email || `${std.enrollment}@aluno.oc.com`;
+          existingUserUpdates[exists.id] = {
+            enrollment: std.enrollment,
+            username: std.enrollment,
+            email: updatedEmail,
+            classId: cls.id,
+            active: true
+          };
+          const inNewUsers = newUsers.find(u => u.id === exists.id);
+          if (inNewUsers) {
+            inNewUsers.enrollment = std.enrollment;
+            inNewUsers.username = std.enrollment;
+            inNewUsers.email = updatedEmail;
+            inNewUsers.classId = cls.id;
+          }
+        } else {
+          existingUserUpdates[exists.id] = { active: true, classId: cls.id };
+        }
       }
 
       // Automatically distribute this student to all subjects of the target class
@@ -2281,7 +2502,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       wipeAllData, loadDemoData,
       login, logout, updatePassword, recoverPassword,
       setActiveClassId, setActiveSubjectId,
-      addCourse, addClass, updateClass, deleteClass, addSubject, addUser, updateUser, deleteUser, updateGrade, updateConceptRanges,
+      addCourse, addClass, updateClass, deleteClass, addSubject, addUser, updateUser, deleteUser, unifyDuplicateStudents, updateGrade, updateConceptRanges,
       saveAttendanceSession, addAttendanceSession,
       directAbsences, updateStudentAbsences,
       toggleJournalStatus, sendMessage, addNotification, clearNotifications,

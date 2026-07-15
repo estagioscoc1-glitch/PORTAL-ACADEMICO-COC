@@ -9,7 +9,7 @@ import {
   GraduationCap, Printer, Bell, Calendar, HelpCircle, CheckCircle, 
   AlertTriangle, BookOpen, Clock, Sparkles, ExternalLink, FileText, 
   Image as ImageIcon, Mic, Download, X, Paperclip, ShieldCheck, ShieldAlert,
-  Upload, UploadCloud, Briefcase, MapPin, Award
+  Upload, UploadCloud, Briefcase, MapPin, Award, History
 } from 'lucide-react';
 import { PrintModal } from './PrintModal';
 import { getInternshipComponentsByCourse } from './AdminInternships';
@@ -27,7 +27,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
     users, internships
   } = useApp();
   const [printDoc, setPrintDoc] = useState<boolean>(false);
-  const [activeSubTab, setActiveSubTab] = useState<'aproveitamento' | 'declaracoes' | 'documentos' | 'estagio'>('aproveitamento');
+  const [printHistorico, setPrintHistorico] = useState<boolean>(false);
+  const [activeSubTab, setActiveSubTab] = useState<'aproveitamento' | 'declaracoes' | 'documentos' | 'estagio' | 'historico_completo'>('aproveitamento');
   const [printDeclType, setPrintDeclType] = useState<'decl_escolaridade' | 'decl_ctransp' | 'decl_vacina' | null>(null);
   
   // Local state for simulated uploads
@@ -173,48 +174,64 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
         {/* Left: Ficha de Aproveitamento Individual Table (High Fidelity) */}
         <div className="md:col-span-8 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-5">
           
-          {/* Sub-Tabs Nav */}
-          <div className="flex items-center gap-1.5 border-b border-slate-150 dark:border-slate-800 pb-3 overflow-x-auto scrollbar-none">
-            <button
-              onClick={() => setActiveSubTab('aproveitamento')}
-              className={`px-4 py-2 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                activeSubTab === 'aproveitamento'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              📊 Aproveitamento
-            </button>
-            <button
-              onClick={() => setActiveSubTab('declaracoes')}
-              className={`px-4 py-2 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                activeSubTab === 'declaracoes'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              📄 Minhas Declarações
-            </button>
-            <button
-              onClick={() => setActiveSubTab('documentos')}
-              className={`px-4 py-2 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                activeSubTab === 'documentos'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              📁 Meus Documentos
-            </button>
-            <button
-              onClick={() => setActiveSubTab('estagio')}
-              className={`px-4 py-2 text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                activeSubTab === 'estagio'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              💼 Meus Estágios
-            </button>
+          {/* Sub-Tabs Nav - 2-row layout (3 on top, 2 below) for easier mobile/desktop navigation without scrolling */}
+          <div className="flex flex-col gap-2 pb-3 border-b border-slate-150 dark:border-slate-800">
+            {/* Top Row: 3 buttons */}
+            <div className="grid grid-cols-3 gap-1.5">
+              <button
+                onClick={() => setActiveSubTab('aproveitamento')}
+                className={`px-2 py-2 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all cursor-pointer text-center truncate ${
+                  activeSubTab === 'aproveitamento'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                📊 Aproveitamento
+              </button>
+              <button
+                onClick={() => setActiveSubTab('historico_completo')}
+                className={`px-2 py-2 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all cursor-pointer text-center truncate ${
+                  activeSubTab === 'historico_completo'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                📜 Histórico Completo
+              </button>
+              <button
+                onClick={() => setActiveSubTab('declaracoes')}
+                className={`px-2 py-2 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all cursor-pointer text-center truncate ${
+                  activeSubTab === 'declaracoes'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                📄 Minhas Declarações
+              </button>
+            </div>
+            {/* Bottom Row: 2 buttons */}
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                onClick={() => setActiveSubTab('documentos')}
+                className={`px-2 py-2 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all cursor-pointer text-center truncate ${
+                  activeSubTab === 'documentos'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                📁 Envio de Documentos
+              </button>
+              <button
+                onClick={() => setActiveSubTab('estagio')}
+                className={`px-2 py-2 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all cursor-pointer text-center truncate ${
+                  activeSubTab === 'estagio'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                💼 Estágios Curriculares
+              </button>
+            </div>
           </div>
 
           {/* TAB 1: APROVEITAMENTO */}
@@ -678,6 +695,144 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
             );
           })()}
 
+          {/* TAB: HISTÓRICO COMPLETO */}
+          {activeSubTab === 'historico_completo' && (() => {
+            const studentGrades = grades.filter(g => g.studentId === activeStudent.id);
+            const uniqueClassIds = Array.from(new Set(studentGrades.map(g => g.classId)));
+            const studentClasses = classes.filter(c => uniqueClassIds.includes(c.id));
+
+            studentClasses.sort((a, b) => {
+              if (a.year !== b.year) return a.year - b.year;
+              if (a.semester !== b.semester) return a.semester - b.semester;
+              return a.module - b.module;
+            });
+
+            return (
+              <div className="space-y-5 animate-fade-in">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-slate-50 dark:bg-slate-850 p-5 rounded-2xl border border-slate-150 dark:border-slate-800">
+                  <div>
+                    <h3 className="font-extrabold text-slate-800 dark:text-white text-base">Histórico Escolar Completo</h3>
+                    <p className="text-xs text-slate-400">Consulte todo o seu aproveitamento acadêmico ao longo do curso.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPrintHistorico(true)}
+                    className="flex items-center gap-1.5 px-4.5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-xs shadow-md shadow-blue-500/10 transition-all cursor-pointer select-none uppercase tracking-wide shrink-0 self-start sm:self-center"
+                  >
+                    <Printer className="h-4 w-4" /> Gerar Histórico Completo (PDF)
+                  </button>
+                </div>
+
+                {studentClasses.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center p-12 text-center bg-slate-50 dark:bg-slate-850 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                    <History className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-3" />
+                    <h4 className="text-sm font-extrabold text-slate-700 dark:text-slate-300 mb-1">Nenhum Registro Encontrado</h4>
+                    <p className="text-xs text-slate-400 max-w-sm">Você ainda não possui registros de notas e frequências lançados no sistema.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {studentClasses.map(cls => {
+                      const classGrades = studentGrades.filter(g => g.classId === cls.id);
+                      const clsSubjects = subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module);
+
+                      return (
+                        <div key={cls.id} className="border border-slate-150 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs bg-white dark:bg-slate-900">
+                          {/* Group Header */}
+                          <div className="bg-slate-50 dark:bg-slate-850/70 p-4 border-b border-slate-150 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <span className="text-xs font-extrabold text-slate-800 dark:text-white">
+                              Turma: {cls.name} ({cls.code || 'N/A'})
+                            </span>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-400 dark:text-slate-400 font-bold uppercase tracking-wider">
+                              <span>Ano: {cls.year}</span>
+                              <span>Semestre: {cls.semester}º</span>
+                              <span>Módulo: {cls.module}º</span>
+                            </div>
+                          </div>
+
+                          {/* Table */}
+                          <div className="overflow-x-auto">
+                            <table className="w-full min-w-[700px] text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="bg-slate-50 dark:bg-slate-850/35 border-b border-slate-150 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                  <th className="py-3 px-4">Disciplina</th>
+                                  <th className="py-3 px-2 text-center w-12">S1</th>
+                                  <th className="py-3 px-2 text-center w-12">S2</th>
+                                  <th className="py-3 px-2 text-center w-12">AFC</th>
+                                  <th className="py-3 px-2 text-center w-12">EX</th>
+                                  <th className="py-3 px-2 text-center w-12">CS</th>
+                                  <th className="py-3 px-2 text-center w-14 font-black">PF</th>
+                                  <th className="py-3 px-3 text-center w-16">Faltas</th>
+                                  <th className="py-3 px-3 text-center w-20">Conceito</th>
+                                  <th className="py-3 px-4 text-right w-24">Resultado</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
+                                {clsSubjects.map(sub => {
+                                  const score = classGrades.find(g => g.subjectId === sub.id);
+                                  const absences = getStudentAbsences(activeStudent.id, sub.id, cls.id);
+                                  return (
+                                    <tr key={sub.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/20">
+                                      <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-200">
+                                        {sub.name}
+                                      </td>
+                                      <td className="py-3 px-2 text-center font-mono">
+                                        {score ? score.s1.toFixed(1) : '0.0'}
+                                      </td>
+                                      <td className="py-3 px-2 text-center font-mono">
+                                        {score ? score.s2.toFixed(1) : '0.0'}
+                                      </td>
+                                      <td className="py-3 px-2 text-center font-mono">
+                                        {score?.afc ? score.afc.toFixed(1) : '0.0'}
+                                      </td>
+                                      <td className="py-3 px-2 text-center font-mono">
+                                        {score?.extra !== null && score?.extra !== undefined ? score.extra.toFixed(1) : '-'}
+                                      </td>
+                                      <td className="py-3 px-2 text-center font-mono">
+                                        {score?.conselho !== null && score?.conselho !== undefined ? score.conselho.toFixed(1) : '-'}
+                                      </td>
+                                      <td className="py-3 px-2 text-center font-black font-mono bg-blue-50/20 text-blue-700 dark:text-blue-400">
+                                        {score ? score.pf.toFixed(1) : '0.0'}
+                                      </td>
+                                      <td className="py-3 px-3 text-center font-mono font-bold text-red-600">
+                                        {absences.total}
+                                      </td>
+                                      <td className="py-3 px-3 text-center">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                          score?.concept === 'A' 
+                                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' 
+                                            : score?.concept === 'B' 
+                                            ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' 
+                                            : score?.concept === 'C' 
+                                            ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' 
+                                            : 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400'
+                                        }`}>
+                                          {score ? score.concept : 'D'}
+                                        </span>
+                                      </td>
+                                      <td className="py-3 px-4 text-right">
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                                          score?.result === 'APTO' 
+                                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' 
+                                            : 'bg-red-500/10 text-red-600 dark:text-red-400'
+                                        }`}>
+                                          {score ? score.result : 'Pendente'}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
         </div>
 
         {/* Right: Notifications & Deadlines Column */}
@@ -908,6 +1063,17 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
           classId={targetClass?.id || 'class_enf_m1_matutino'}
           subjectId={studentSubjects[0]?.id || ''}
           onClose={() => setPrintDeclType(null)}
+        />
+      )}
+
+      {/* Printing Modal for Complete Academic History */}
+      {printHistorico && (
+        <PrintModal
+          documentType="historico_completo"
+          studentId={activeStudent.id}
+          classId={targetClass?.id || 'class_enf_m1_matutino'}
+          subjectId={''}
+          onClose={() => setPrintHistorico(false)}
         />
       )}
 

@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { useApp, getRequiredDocsForStudent } from '../context/AppContext';
-import { UserRole, Shift, CalendarEventType } from '../types';
+import { UserRole, Shift, CalendarEventType, User } from '../types';
 import { 
   Users, UserCheck, GraduationCap, School, BookOpen, FileCheck, CheckCircle2, 
   XCircle, Inbox, Send, Calendar, FolderPlus, BellRing, Settings, UserPlus, 
@@ -23,6 +23,56 @@ import { AdminInternships } from './AdminInternships';
 import { Briefcase } from 'lucide-react';
 import { motion } from 'motion/react';
 
+// Helper functions for fuzzy duplicate detection
+const cleanName = (name: string) => {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove accents
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
+};
+
+const getLevenshteinDistance = (a: string, b: string): number => {
+  const matrix: number[][] = [];
+  for (let i = 0; i <= a.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= b.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+    }
+  }
+  return matrix[a.length][b.length];
+};
+
+const areNamesSimilar = (name1: string, name2: string): boolean => {
+  const n1 = cleanName(name1);
+  const n2 = cleanName(name2);
+  
+  if (n1 === n2) return true;
+
+  const coll1 = n1.replace(/([a-z])\1+/g, '$1');
+  const coll2 = n2.replace(/([a-z])\1+/g, '$1');
+  if (coll1 === coll2) return true;
+
+  const maxLen = Math.max(n1.length, n2.length);
+  if (maxLen === 0) return false;
+  
+  const distance = getLevenshteinDistance(n1, n2);
+  const threshold = maxLen > 10 ? 2 : 1;
+  if (distance <= threshold) return true;
+
+  return false;
+};
+
 export const AdminDashboard: React.FC = () => {
   const { 
     users, courses, classes, subjects, grades, attendance, calendarEvents, messages,
@@ -39,12 +89,20 @@ export const AdminDashboard: React.FC = () => {
     storageBackups, isLoadingStorageBackups, fetchStorageBackups,
     triggerStorageBackup, deleteStorageBackup,
     declarationConfigs, studentDocuments,
-    updateDeclarationConfig, updateStudentDocumentStatus, transferStudent
+    updateDeclarationConfig, updateStudentDocumentStatus, transferStudent,
+    unifyDuplicateStudents
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio'>('visu');
+  const [activeTab, setActiveTab] = useState<'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio' | 'historico_completo' | 'detect_duplicates'>('visu');
   const [searchQuery, setSearchQuery] = useState('');
   const [printDoc, setPrintDoc] = useState<any | null>(null);
+
+  // Historico Completo states
+  const [historicoSearch, setHistoricoSearch] = useState('');
+  const [selectedHistoricoStudentId, setSelectedHistoricoStudentId] = useState('');
+
+  // Duplicates unifier states
+  const [confirmingGroupKey, setConfirmingGroupKey] = useState<string | null>(null);
 
   // Transfer Student states
   const [transferStudentId, setTransferStudentId] = useState('');
@@ -63,6 +121,12 @@ export const AdminDashboard: React.FC = () => {
   // Pending Documents states
   const [selectedDocStudentId, setSelectedDocStudentId] = useState<string | null>(null);
   const [docSearchQuery, setDocSearchQuery] = useState('');
+
+  const findSimilarStudents = (studentId: string) => {
+    const currentStudent = users.find(u => u.id === studentId);
+    if (!currentStudent) return [];
+    return users.filter(u => u.role === UserRole.STUDENT && u.id !== studentId && areNamesSimilar(currentStudent.name, u.name));
+  };
 
   React.useEffect(() => {
     if (declarationConfigs) {
@@ -720,6 +784,18 @@ export const AdminDashboard: React.FC = () => {
         </button>
         <button
           type="button"
+          onClick={() => setActiveTab('historico_completo')}
+          className={`pb-3 text-xs sm:text-sm font-extrabold px-3 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
+            activeTab === 'historico_completo' 
+              ? 'text-blue-700 dark:text-blue-400 border-b-2 border-blue-700 dark:border-blue-400' 
+              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <History className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+          <span>Histórico Completo do Aluno</span>
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab('estagio')}
           className={`pb-3 text-xs sm:text-sm font-extrabold px-3 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
             activeTab === 'estagio' 
@@ -729,6 +805,18 @@ export const AdminDashboard: React.FC = () => {
         >
           <Briefcase className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           <span>Lançar Estágios</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('detect_duplicates')}
+          className={`pb-3 text-xs sm:text-sm font-extrabold px-3 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
+            activeTab === 'detect_duplicates' 
+              ? 'text-blue-700 dark:text-blue-400 border-b-2 border-blue-700 dark:border-blue-400' 
+              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <Users className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+          <span>Detectar Duplicados</span>
         </button>
       </div>
 
@@ -3519,9 +3607,59 @@ export const AdminDashboard: React.FC = () => {
                 const averageFrequency = totalWorkload > 0 ? Math.max(0, ((totalWorkload - studentTotalAbsences) / totalWorkload) * 100) : 100;
                 const overallResult = averageFrequency < 75 ? 'RETIDO POR FALTAS' : (failsCount > 0 ? 'PENDENTE/RETIDO' : 'APTO');
 
+                const similarStudents = findSimilarStudents(student.id);
+
                 return (
-                  <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden animate-fade-in space-y-6 p-6">
-                    {/* Student Info Bar */}
+                  <div className="space-y-4">
+                    {similarStudents.map(simStudent => {
+                      const simClass = simStudent.classId ? classes.find(c => c.id === simStudent.classId)?.name : '';
+                      const simGradesCount = grades.filter(g => g.studentId === simStudent.id).length;
+                      return (
+                        <div key={simStudent.id} className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-xs animate-fade-in">
+                          <div className="flex gap-2.5 items-start">
+                            <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5 animate-bounce" />
+                            <div className="space-y-1">
+                              <p className="font-extrabold text-amber-800 dark:text-amber-400">
+                                Aluno Duplicado Identificado!
+                              </p>
+                              <p className="text-slate-600 dark:text-slate-300">
+                                Existe outro cadastro com nome correspondente: <strong>{simStudent.name}</strong> 
+                                {simClass ? ` (Turma: ${simClass})` : ''} 
+                                {simStudent.enrollment ? ` • Matrícula: ${simStudent.enrollment}` : ' • Sem matrícula'} 
+                                {` • Registros de notas: ${simGradesCount}`}.
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const hasEnrollmentTarget = !!student.enrollment;
+                              const hasEnrollmentSim = !!simStudent.enrollment;
+                              
+                              let principalId = student.id;
+                              let duplicateId = simStudent.id;
+                              
+                              if (!hasEnrollmentTarget && hasEnrollmentSim) {
+                                principalId = simStudent.id;
+                                duplicateId = student.id;
+                              }
+                              
+                              if (confirm(`Confirmar unificação? Todos os boletins, notas, diários, presenças e documentos de "${simStudent.name}" serão migrados para "${student.name}". O cadastro duplicado será deletado permanentemente.`)) {
+                                unifyDuplicateStudents(principalId, [duplicateId]);
+                                setSelectedBoletimStudentId(principalId);
+                                alert('Registros de alunos unificados com sucesso!');
+                              }
+                            }}
+                            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-[11px] uppercase tracking-wider active:scale-[0.98] transition-all cursor-pointer shadow-sm shrink-0 whitespace-nowrap self-start sm:self-center"
+                          >
+                            Unificar Cadastros
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden animate-fade-in space-y-6 p-6">
+                      {/* Student Info Bar */}
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
                       <div>
                         <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest block font-mono mb-1">
@@ -3668,6 +3806,7 @@ export const AdminDashboard: React.FC = () => {
                       </div>
                     </div>
                   </div>
+                  </div>
                 );
               })()}
             </div>
@@ -3685,6 +3824,706 @@ export const AdminDashboard: React.FC = () => {
           <AdminInternships />
         </motion.div>
       )}
+
+      {/* Tab: HISTÓRICO COMPLETO DO ALUNO */}
+      {activeTab === 'historico_completo' && (
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-6"
+        >
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-150 dark:border-slate-800 shadow-sm">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                <History className="h-6 w-6" />
+                <h3 className="font-extrabold text-lg">Histórico Completo do Aluno</h3>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Visualize e emita o histórico escolar completo do aluno, contemplando todos os módulos e períodos cursados.
+              </p>
+            </div>
+            {/* Print Action Button */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedHistoricoStudentId) {
+                    const stdGrades = grades.filter(g => g.studentId === selectedHistoricoStudentId);
+                    const stdClassId = stdGrades[0]?.classId || users.find(u => u.id === selectedHistoricoStudentId)?.classId || classes[0]?.id || '';
+                    setPrintDoc({ type: 'historico_completo', studentId: selectedHistoricoStudentId, classId: stdClassId });
+                  } else {
+                    alert('Por favor, selecione um aluno.');
+                  }
+                }}
+                disabled={!selectedHistoricoStudentId}
+                className="flex items-center gap-1.5 px-4 py-2 bg-blue-700 hover:bg-blue-800 disabled:opacity-45 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-600/10 transition-all cursor-pointer"
+              >
+                <Printer className="h-4 w-4" /> Imprimir Histórico Completo
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column: Student Search & Selection */}
+            <div className="lg:col-span-4 space-y-4">
+              
+              {/* Search Card */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-3xl shadow-sm space-y-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Localizar Aluno (Nome ou Matrícula)</p>
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Pesquisar por Nome ou Matrícula..."
+                    value={historicoSearch}
+                    onChange={(e) => setHistoricoSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white focus:bg-white placeholder-slate-400"
+                  />
+                </div>
+
+                {/* Instant search results list */}
+                {historicoSearch.trim() !== '' && (
+                  <div className="border border-slate-150 dark:border-slate-800 rounded-xl max-h-[250px] overflow-y-auto bg-slate-50 dark:bg-slate-950 divide-y divide-slate-150 dark:divide-slate-850">
+                    {(() => {
+                      const matches = users.filter(u => u.role === UserRole.STUDENT && (
+                        u.name.toLowerCase().includes(historicoSearch.toLowerCase()) || 
+                        (u.enrollment && u.enrollment.toLowerCase().includes(historicoSearch.toLowerCase()))
+                      ));
+                      if (matches.length === 0) {
+                        return <p className="p-3 text-[11px] text-slate-400 italic text-center">Nenhum aluno encontrado</p>;
+                      }
+                      return matches.map(std => {
+                        const stdGrade = grades.find(g => g.studentId === std.id);
+                        const stdClass = stdGrade ? classes.find(c => c.id === stdGrade.classId) : null;
+                        return (
+                          <button
+                            key={std.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedHistoricoStudentId(std.id);
+                              setHistoricoSearch(''); // clear search input
+                            }}
+                            className="w-full text-left p-2.5 hover:bg-blue-50 dark:hover:bg-blue-950/20 text-xs transition-all flex flex-col gap-0.5"
+                          >
+                            <span className="font-bold text-slate-800 dark:text-slate-200">{std.name}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              Matrícula: {std.enrollment || 'N/A'} {stdClass ? `• Turma: ${stdClass.name}` : ''}
+                            </span>
+                          </button>
+                        );
+                      });
+                    })()}
+                  </div>
+                )}
+              </div>
+
+              {/* Student Quick List Card */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-3xl shadow-sm space-y-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Diretório de Alunos</p>
+                <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
+                  {users
+                    .filter(u => u.role === UserRole.STUDENT)
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(std => {
+                      const isSelected = selectedHistoricoStudentId === std.id;
+                      const stdGrade = grades.find(g => g.studentId === std.id);
+                      const stdClass = stdGrade ? classes.find(c => c.id === stdGrade.classId) : null;
+                      return (
+                        <button
+                          key={std.id}
+                          type="button"
+                          onClick={() => setSelectedHistoricoStudentId(std.id)}
+                          className={`w-full text-left p-2.5 rounded-xl text-xs transition-all flex flex-col gap-0.5 border ${
+                            isSelected 
+                              ? 'bg-blue-600 border-blue-600 text-white shadow-sm shadow-blue-500/20' 
+                              : 'bg-slate-50 dark:bg-slate-850 border-slate-150 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <span className="font-extrabold truncate">{std.name}</span>
+                          <span className={`text-[9px] font-mono ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
+                            Matrícula: {std.enrollment || 'Sem matrícula'} {stdClass ? `• ${stdClass.name}` : ''}
+                          </span>
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: Complete academic records grouped by modules */}
+            <div className="lg:col-span-8">
+              {(() => {
+                const targetStudent = users.find(u => u.id === selectedHistoricoStudentId);
+                if (!targetStudent) {
+                  return (
+                    <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl text-center min-h-[350px]">
+                      <History className="h-12 w-12 text-slate-300 dark:text-slate-700 mb-4 animate-pulse" />
+                      <h4 className="text-sm font-extrabold text-slate-800 dark:text-white mb-1">Nenhum Aluno Selecionado</h4>
+                      <p className="text-xs text-slate-400 max-w-sm">
+                        Utilize a busca ou o diretório ao lado para selecionar o aluno e visualizar o Histórico Completo de Aproveitamento.
+                      </p>
+                    </div>
+                  );
+                }
+
+                const similarStudents = findSimilarStudents(targetStudent.id);
+                const studentGrades = grades.filter(g => g.studentId === targetStudent.id);
+                const uniqueClassIds = Array.from(new Set(studentGrades.map(g => g.classId)));
+                const studentClasses = classes.filter(c => uniqueClassIds.includes(c.id));
+
+                studentClasses.sort((a, b) => {
+                  if (a.year !== b.year) return a.year - b.year;
+                  if (a.semester !== b.semester) return a.semester - b.semester;
+                  return a.module - b.module;
+                });
+
+                const similarBanner = similarStudents.length > 0 && (
+                  <div className="space-y-3 mb-4">
+                    {similarStudents.map(simStudent => {
+                      const simClass = simStudent.classId ? classes.find(c => c.id === simStudent.classId)?.name : '';
+                      const simGradesCount = grades.filter(g => g.studentId === simStudent.id).length;
+                      return (
+                        <div key={simStudent.id} className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-xs animate-fade-in">
+                          <div className="flex gap-2.5 items-start">
+                            <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5 animate-bounce" />
+                            <div className="space-y-1">
+                              <p className="font-extrabold text-amber-800 dark:text-amber-400">
+                                Cadastro Duplicado Identificado!
+                              </p>
+                              <p className="text-slate-600 dark:text-slate-300">
+                                Existe outro cadastro com nome correspondente: <strong>{simStudent.name}</strong> 
+                                {simClass ? ` (Turma: ${simClass})` : ''} 
+                                {simStudent.enrollment ? ` • Matrícula: ${simStudent.enrollment}` : ' • Sem matrícula'} 
+                                {` • Registros de notas: ${simGradesCount}`}.
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const hasEnrollmentTarget = !!targetStudent.enrollment;
+                              const hasEnrollmentSim = !!simStudent.enrollment;
+                              
+                              let principalId = targetStudent.id;
+                              let duplicateId = simStudent.id;
+                              
+                              if (!hasEnrollmentTarget && hasEnrollmentSim) {
+                                principalId = simStudent.id;
+                                duplicateId = targetStudent.id;
+                              }
+                              
+                              if (confirm(`Confirmar unificação? Todos os boletins, notas, diários, presenças e documentos de "${simStudent.name}" serão migrados para "${targetStudent.name}". O cadastro duplicado será deletado permanentemente.`)) {
+                                unifyDuplicateStudents(principalId, [duplicateId]);
+                                setSelectedHistoricoStudentId(principalId);
+                                alert('Registros de alunos unificados com sucesso!');
+                              }
+                            }}
+                            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold rounded-xl text-[11px] uppercase tracking-wider active:scale-[0.98] transition-all cursor-pointer shadow-sm shrink-0 whitespace-nowrap self-start sm:self-center"
+                          >
+                            Unificar Cadastros
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+
+                if (studentClasses.length === 0) {
+                  return (
+                    <div className="space-y-4">
+                      {similarBanner}
+                      <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl text-center min-h-[350px]">
+                        <FileText className="h-12 w-12 text-slate-300 dark:text-slate-700 mb-4" />
+                        <h4 className="text-sm font-extrabold text-slate-800 dark:text-white mb-1">Nenhum Registro de Notas</h4>
+                        <p className="text-xs text-slate-400 max-w-sm">
+                          O aluno <strong>{targetStudent.name}</strong> não possui registros de notas cadastrados no sistema.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-6">
+                    {similarBanner}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-3xl shadow-sm">
+                      <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4 mb-5">
+                        <div className="p-2 bg-blue-50 dark:bg-blue-950/40 rounded-xl">
+                          <GraduationCap className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-extrabold text-slate-800 dark:text-white">{targetStudent.name}</h4>
+                          <p className="text-[10px] text-slate-400 font-mono uppercase tracking-wider">
+                            Matrícula: {targetStudent.enrollment || 'N/A'} • Status: Ativo
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-6">
+                        {studentClasses.map(cls => {
+                          const classGrades = studentGrades.filter(g => g.classId === cls.id);
+                          const clsSubjects = subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module);
+
+                          return (
+                            <div key={cls.id} className="border border-slate-150 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+                              {/* Group Header */}
+                              <div className="bg-slate-50 dark:bg-slate-850 p-4 border-b border-slate-150 dark:border-slate-850 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                <span className="text-xs font-extrabold text-slate-800 dark:text-white">
+                                  Turma: {cls.name} ({cls.code || 'N/A'})
+                                </span>
+                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-400 dark:text-slate-400 font-bold uppercase tracking-wider">
+                                  <span>Ano: {cls.year}</span>
+                                  <span>Semestre: {cls.semester}º</span>
+                                  <span>Módulo: {cls.module}º</span>
+                                </div>
+                              </div>
+
+                              {/* Table */}
+                              <div className="overflow-x-auto">
+                                <table className="w-full min-w-[700px] text-left border-collapse text-xs">
+                                  <thead>
+                                    <tr className="bg-slate-50 dark:bg-slate-850/50 border-b border-slate-150 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                      <th className="py-3 px-4">Disciplina</th>
+                                      <th className="py-3 px-2 text-center w-12">S1</th>
+                                      <th className="py-3 px-2 text-center w-12">S2</th>
+                                      <th className="py-3 px-2 text-center w-12">AFC</th>
+                                      <th className="py-3 px-2 text-center w-12">EX</th>
+                                      <th className="py-3 px-2 text-center w-12">CS</th>
+                                      <th className="py-3 px-2 text-center w-14 font-black">PF</th>
+                                      <th className="py-3 px-3 text-center w-16">Faltas</th>
+                                      <th className="py-3 px-3 text-center w-20">Conceito</th>
+                                      <th className="py-3 px-4 text-right w-24">Resultado</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
+                                    {clsSubjects.map(sub => {
+                                      const score = classGrades.find(g => g.subjectId === sub.id);
+                                      const absences = getStudentAbsences(targetStudent.id, sub.id, cls.id);
+                                      return (
+                                        <tr key={sub.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/20">
+                                          <td className="py-3 px-4 font-bold text-slate-800 dark:text-slate-200">
+                                            {sub.name}
+                                          </td>
+                                          <td className="py-3 px-2 text-center font-mono">
+                                            {score ? score.s1.toFixed(1) : '0.0'}
+                                          </td>
+                                          <td className="py-3 px-2 text-center font-mono">
+                                            {score ? score.s2.toFixed(1) : '0.0'}
+                                          </td>
+                                          <td className="py-3 px-2 text-center font-mono">
+                                            {score?.afc ? score.afc.toFixed(1) : '0.0'}
+                                          </td>
+                                          <td className="py-3 px-2 text-center font-mono">
+                                            {score?.extra !== null && score?.extra !== undefined ? score.extra.toFixed(1) : '-'}
+                                          </td>
+                                          <td className="py-3 px-2 text-center font-mono">
+                                            {score?.conselho !== null && score?.conselho !== undefined ? score.conselho.toFixed(1) : '-'}
+                                          </td>
+                                          <td className="py-3 px-2 text-center font-black font-mono bg-blue-50/20 text-blue-700 dark:text-blue-400">
+                                            {score ? score.pf.toFixed(1) : '0.0'}
+                                          </td>
+                                          <td className="py-3 px-3 text-center font-mono font-bold text-red-600">
+                                            {absences.total}
+                                          </td>
+                                          <td className="py-3 px-3 text-center">
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                              score?.concept === 'A' 
+                                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' 
+                                                : score?.concept === 'B' 
+                                                ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400' 
+                                                : score?.concept === 'C' 
+                                                ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' 
+                                                : 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400'
+                                            }`}>
+                                              {score ? score.concept : 'D'}
+                                            </span>
+                                          </td>
+                                          <td className="py-3 px-4 text-right">
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                                              score?.result === 'APTO' 
+                                                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' 
+                                                : 'bg-red-500/10 text-red-600 dark:text-red-400'
+                                            }`}>
+                                              {score ? score.result : 'Pendente'}
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Tab: DETECTAR E UNIFICAR ALUNOS DUPLICADOS */}
+      {activeTab === 'detect_duplicates' && (() => {
+        // Helper functions for fuzzy duplicate detection
+        const cleanName = (name: string) => {
+          return name
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "") // remove accents
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, ' ');
+        };
+
+        const getLevenshteinDistance = (a: string, b: string): number => {
+          const matrix: number[][] = [];
+          for (let i = 0; i <= a.length; i++) {
+            matrix[i] = [i];
+          }
+          for (let j = 0; j <= b.length; j++) {
+            matrix[0][j] = j;
+          }
+          for (let i = 1; i <= a.length; i++) {
+            for (let j = 1; j <= b.length; j++) {
+              matrix[i][j] = Math.min(
+                matrix[i - 1][j] + 1,
+                matrix[i][j - 1] + 1,
+                matrix[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+              );
+            }
+          }
+          return matrix[a.length][b.length];
+        };
+
+        const areNamesSimilar = (name1: string, name2: string): boolean => {
+          const n1 = cleanName(name1);
+          const n2 = cleanName(name2);
+          
+          if (n1 === n2) return true;
+
+          const coll1 = n1.replace(/([a-z])\1+/g, '$1');
+          const coll2 = n2.replace(/([a-z])\1+/g, '$1');
+          if (coll1 === coll2) return true;
+
+          const maxLen = Math.max(n1.length, n2.length);
+          if (maxLen === 0) return false;
+          
+          const distance = getLevenshteinDistance(n1, n2);
+          const threshold = maxLen > 10 ? 2 : 1;
+          if (distance <= threshold) return true;
+
+          return false;
+        };
+
+        // Find all student users
+        const studentUsers = users.filter(u => u.role === UserRole.STUDENT);
+
+        // Build groups of duplicates using Connected Components based on name similarity
+        const visited = new Set<string>();
+        const groups: User[][] = [];
+
+        studentUsers.forEach(u => {
+          if (visited.has(u.id)) return;
+          
+          const component: User[] = [u];
+          visited.add(u.id);
+
+          let changed = true;
+          while (changed) {
+            changed = false;
+            for (const other of studentUsers) {
+              if (visited.has(other.id)) continue;
+              
+              const isSimilarToAny = component.some(member => areNamesSimilar(member.name, other.name));
+              if (isSimilarToAny) {
+                component.push(other);
+                visited.add(other.id);
+                changed = true;
+              }
+            }
+          }
+
+          if (component.length > 1) {
+            groups.push(component);
+          }
+        });
+
+        // Map groups to duplicateGroups format
+        const duplicateGroups = groups.map((membersList, idx) => {
+          const members = [...membersList].sort((a, b) => {
+            const indexA = users.findIndex(u => u.id === a.id);
+            const indexB = users.findIndex(u => u.id === b.id);
+            return indexA - indexB;
+          });
+          return {
+            key: `group_${idx}`,
+            name: members[0].name,
+            members
+          };
+        });
+
+        const getStudentClass = (student: User) => {
+          if (student.classId) {
+            const cls = classes.find(c => c.id === student.classId);
+            if (cls) return cls.name;
+          }
+          // fallback to grade records
+          const firstGrade = grades.find(g => g.studentId === student.id);
+          if (firstGrade) {
+            const cls = classes.find(c => c.id === firstGrade.classId);
+            if (cls) return cls.name;
+          }
+          return 'Sem Turma';
+        };
+
+        const getGradeRecordsCount = (studentId: string) => {
+          return grades.filter(g => g.studentId === studentId).length;
+        };
+
+        const getPrincipalForGroup = (members: User[]) => {
+          // Choose as principal the one who has an enrollment filled, or if none, the oldest (first in array order)
+          const withEnrollment = members.filter(m => m.enrollment && m.enrollment.trim() !== "");
+          if (withEnrollment.length > 0) {
+            return withEnrollment[0];
+          }
+          return members[0];
+        };
+
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            {/* Header Banner */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-150 dark:border-slate-800 shadow-sm">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                  <Users className="h-6 w-6" />
+                  <h3 className="font-extrabold text-lg">Detectar e Unificar Alunos Duplicados</h3>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Monitore e consolide cadastros duplicados de estudantes. Preserve notas, diários, presenças e histórico acadêmico sob uma única matrícula principal.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-xl">
+                  <GraduationCap className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total de Alunos</p>
+                  <p className="text-lg font-black text-slate-800 dark:text-white">{studentUsers.length}</p>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
+                <div className={`p-3 rounded-xl ${duplicateGroups.length > 0 ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400' : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'}`}>
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Nomes Duplicados</p>
+                  <p className="text-lg font-black text-slate-800 dark:text-white">{duplicateGroups.length}</p>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
+                <div className="p-3 bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 rounded-xl">
+                  <Database className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Integridade de Dados</p>
+                  <p className="text-lg font-black text-slate-800 dark:text-white">
+                    {duplicateGroups.length === 0 ? '100% OK' : `${(((studentUsers.length - duplicateGroups.length * 2) / studentUsers.length) * 100).toFixed(1)}%`}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Empty State */}
+            {duplicateGroups.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl text-center min-h-[350px]">
+                <div className="h-16 w-16 bg-emerald-50 dark:bg-emerald-950/25 rounded-full flex items-center justify-center mb-4 text-emerald-500">
+                  <CheckCircle2 className="h-10 w-10" />
+                </div>
+                <h4 className="text-base font-extrabold text-slate-800 dark:text-white mb-1">Nenhum Aluno Duplicado Identificado</h4>
+                <p className="text-xs text-slate-400 max-w-sm">
+                  Parabéns! Não há alunos cadastrados com nomes correspondentes ou redundantes na base de dados ativa do Lynxoc.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between pb-2">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Grupos de Registros Duplicados</h4>
+                  <span className="px-2 py-1 bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 rounded-lg text-[10px] font-extrabold font-mono">
+                    Ação Requerida
+                  </span>
+                </div>
+
+                <div className="space-y-6">
+                  {duplicateGroups.map(group => {
+                    const principal = getPrincipalForGroup(group.members);
+                    const duplicateMembers = group.members.filter(m => m.id !== principal.id);
+                    const isConfirming = confirmingGroupKey === group.key;
+
+                    return (
+                      <div 
+                        key={group.key}
+                        className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden"
+                      >
+                        {/* Group Header */}
+                        <div className="bg-slate-50 dark:bg-slate-850/50 p-5 border-b border-slate-150 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                          <div className="space-y-1">
+                            <h5 className="font-extrabold text-slate-800 dark:text-white text-sm sm:text-base tracking-tight">
+                              {group.name}
+                            </h5>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                              {group.members.length} cadastros coincidentes encontrados
+                            </p>
+                          </div>
+                          
+                          {!isConfirming ? (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmingGroupKey(group.key)}
+                              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-xl text-xs shadow-md shadow-rose-500/10 active:scale-[0.98] transition-all cursor-pointer select-none uppercase tracking-wider flex items-center gap-1.5"
+                            >
+                              <RefreshCw className="h-3.5 w-3.5" />
+                              Unificar Registros
+                            </button>
+                          ) : (
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  unifyDuplicateStudents(principal.id, duplicateMembers.map(m => m.id));
+                                  setConfirmingGroupKey(null);
+                                }}
+                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs shadow-md active:scale-[0.98] transition-all cursor-pointer uppercase tracking-wider"
+                              >
+                                Confirmar Unificação
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmingGroupKey(null)}
+                                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 font-extrabold rounded-xl text-xs active:scale-[0.98] transition-all cursor-pointer uppercase tracking-wider"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Side-by-Side Duplicate Student Details */}
+                        <div className="p-6">
+                          {isConfirming && (
+                            <div className="mb-6 p-4.5 bg-rose-50/50 dark:bg-rose-950/15 border border-rose-200 dark:border-rose-900/35 rounded-2xl flex gap-3.5">
+                              <AlertTriangle className="h-5 w-5 text-rose-500 shrink-0 mt-0.5" />
+                              <div className="space-y-1">
+                                <h6 className="text-xs font-extrabold text-rose-800 dark:text-rose-400">
+                                  Confirmação Crucial de Mesclagem
+                                </h6>
+                                <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
+                                  A unificação irá apagar permanentemente os registros duplicados de usuários e mover todas as notas (GradeRecords) e faltas atreladas a eles para o cadastro principal <strong>{principal.name} (ID: {principal.id})</strong>. Esta ação é definitiva e não poderá ser desfeita.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {group.members.map(member => {
+                              const isPrincipal = member.id === principal.id;
+                              const classAndMod = getStudentClass(member);
+                              const gradesCount = getGradeRecordsCount(member.id);
+
+                              return (
+                                <div 
+                                  key={member.id}
+                                  className={`relative rounded-2xl border p-5 transition-all duration-300 flex flex-col justify-between min-h-[200px] ${
+                                    isPrincipal 
+                                      ? 'bg-emerald-50/30 dark:bg-emerald-950/5 border-emerald-500/45 dark:border-emerald-500/25 shadow-md shadow-emerald-500/5' 
+                                      : 'bg-slate-50/30 dark:bg-slate-850/10 border-slate-200 dark:border-slate-800 shadow-xs'
+                                  }`}
+                                >
+                                  {/* Badge: Principal vs Duplicate */}
+                                  <div className="absolute top-4 right-4">
+                                    {isPrincipal ? (
+                                      <span className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-full text-[9px] font-black uppercase tracking-wider">
+                                        <CheckCircle2 className="h-3 w-3" />
+                                        Principal
+                                      </span>
+                                    ) : (
+                                      <span className="px-2.5 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-full text-[9px] font-black uppercase tracking-wider">
+                                        Duplicado
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="space-y-4">
+                                    {/* Avatar & Name */}
+                                    <div className="flex items-center gap-3">
+                                      <div className={`h-10 w-10 rounded-full flex items-center justify-center text-sm font-black uppercase tracking-wider shadow-inner ${
+                                        isPrincipal 
+                                          ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400' 
+                                          : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                                      }`}>
+                                        {member.name.substring(0, 2)}
+                                      </div>
+                                      <div className="space-y-0.5">
+                                        <h6 className="text-xs font-black text-slate-800 dark:text-slate-100 leading-snug pr-24 truncate max-w-[140px]" title={member.name}>
+                                          {member.name}
+                                        </h6>
+                                        <p className="text-[9px] font-mono font-bold text-slate-400">
+                                          ID: {member.id}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    {/* Student Metadata Table */}
+                                    <div className="space-y-2 border-t border-slate-150 dark:border-slate-850 pt-3">
+                                      <div className="flex items-center justify-between text-[11px]">
+                                        <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wide">Matrícula:</span>
+                                        <span className={`font-mono font-black ${member.enrollment ? 'text-slate-700 dark:text-slate-300' : 'text-amber-500'}`}>
+                                          {member.enrollment || 'Não preenchida'}
+                                        </span>
+                                      </div>
+
+                                      <div className="flex items-center justify-between text-[11px]">
+                                        <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wide">Turma Atual:</span>
+                                        <span className="font-extrabold text-slate-700 dark:text-slate-300">
+                                          {classAndMod}
+                                        </span>
+                                      </div>
+
+                                      <div className="flex items-center justify-between text-[11px]">
+                                        <span className="text-slate-400 font-bold uppercase text-[9px] tracking-wide">Histórico Acadêmico:</span>
+                                        <span className={`font-mono font-black px-1.5 py-0.5 rounded-md ${gradesCount > 0 ? 'bg-blue-50 dark:bg-blue-950/25 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+                                          {gradesCount} diários
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        );
+      })()}
 
       {/* PDF Viewer / Print Frame Overlay */}
       {printDoc && (() => {

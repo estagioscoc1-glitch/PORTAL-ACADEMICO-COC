@@ -11,7 +11,7 @@ import { motion } from 'motion/react';
 import { safeLocalStorage } from '../lib/safeStorage';
 
 interface PrintModalProps {
-  documentType: 'boletim' | 'diario_notas' | 'diario_freq' | 'mapa_notas' | 'boletim_sala' | 'decl_escolaridade' | 'decl_ctransp' | 'decl_vacina';
+  documentType: 'boletim' | 'diario_notas' | 'diario_freq' | 'mapa_notas' | 'boletim_sala' | 'decl_escolaridade' | 'decl_ctransp' | 'decl_vacina' | 'historico_completo';
   studentId?: string; // For boletim
   classId: string;
   subjectId: string;
@@ -39,7 +39,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
     ? subjects.filter(s => s.courseId === targetClass.courseId && s.module === targetClass.module)
     : subjects;
 
-  const isLandscape = documentType !== 'boletim' && documentType !== 'boletim_sala' && documentType !== 'decl_escolaridade' && documentType !== 'decl_ctransp' && documentType !== 'decl_vacina';
+  const isLandscape = documentType !== 'boletim' && documentType !== 'boletim_sala' && documentType !== 'decl_escolaridade' && documentType !== 'decl_ctransp' && documentType !== 'decl_vacina' && documentType !== 'historico_completo';
 
   const [isMinimized, setIsMinimized] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -341,6 +341,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
           <div className="flex-1 flex flex-col justify-center items-center text-center p-2 border-r border-black">
             <h1 className="text-sm font-black uppercase tracking-wider text-black">
               {['boletim', 'boletim_sala'].includes(documentType) && 'Ficha de Aproveitamento Individual'}
+              {documentType === 'historico_completo' && 'Histórico Escolar Completo'}
               {(documentType === 'diario_notas' || documentType === 'diario_freq' || documentType === 'mapa_notas') && 'Ficha de Acompanhamento do Discente'}
             </h1>
             <p className="text-[9px] font-bold uppercase tracking-widest text-slate-700">
@@ -384,7 +385,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
             <span className="font-medium text-slate-800">{targetCourse?.name || 'TÉCNICO EM ENFERMAGEM'}</span>
           </div>
           <div className="w-1/2 p-1.5 px-2 uppercase flex items-center justify-between">
-            {['boletim', 'boletim_sala'].includes(documentType) && studentToUse ? (
+            {['boletim', 'boletim_sala', 'historico_completo'].includes(documentType) && studentToUse ? (
               <>
                 <span>Aluno:</span>
                 <span className="font-black text-slate-900">{studentToUse.enrollment} - {studentToUse.name}</span>
@@ -402,7 +403,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
   };
 
   const renderFooter = () => {
-    if (['boletim', 'boletim_sala', 'decl_escolaridade', 'decl_ctransp', 'decl_vacina'].includes(documentType)) {
+    if (['boletim', 'boletim_sala', 'historico_completo', 'decl_escolaridade', 'decl_ctransp', 'decl_vacina'].includes(documentType)) {
       return null;
     }
 
@@ -1506,6 +1507,120 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                     </table>
                   </div>
                 )}
+
+                {/* HISTÓRICO ACADÊMICO COMPLETO */}
+                {documentType === 'historico_completo' && targetStudent && (() => {
+                  const studentGrades = grades.filter(g => g.studentId === targetStudent.id);
+                  const uniqueClassIds = Array.from(new Set(studentGrades.map(g => g.classId)));
+                  const studentClasses = classes.filter(c => uniqueClassIds.includes(c.id));
+                  
+                  studentClasses.sort((a, b) => {
+                    if (a.year !== b.year) return a.year - b.year;
+                    if (a.semester !== b.semester) return a.semester - b.semester;
+                    return a.module - b.module;
+                  });
+
+                  return (
+                    <div className="space-y-6">
+                      {studentClasses.map(cls => {
+                        const classGrades = studentGrades.filter(g => g.classId === cls.id);
+                        const clsSubjects = subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module);
+
+                        return (
+                          <div key={cls.id} className="border border-black p-3 rounded bg-white text-black page-break-inside-avoid">
+                            {/* Class Header */}
+                            <div className="border-b border-black pb-1.5 mb-2 flex justify-between items-center text-[10px] font-bold">
+                              <span className="font-black uppercase">
+                                Turma: {cls.name} ({cls.code || 'N/A'})
+                              </span>
+                              <div className="space-x-3 text-slate-700">
+                                <span>Ano: {cls.year}</span>
+                                <span>Semestre: {cls.semester}º</span>
+                                <span>Módulo: {cls.module}º</span>
+                              </div>
+                            </div>
+
+                            {/* Table */}
+                            <table className="w-full table-fixed text-left border-collapse text-[9px] text-black border border-black">
+                              <colgroup>
+                                <col /> {/* Disciplina */}
+                                <col style={{ width: '45px' }} /> {/* S1 */}
+                                <col style={{ width: '45px' }} /> {/* S2 */}
+                                <col style={{ width: '45px' }} /> {/* AFC */}
+                                <col style={{ width: '40px' }} /> {/* EX */}
+                                <col style={{ width: '40px' }} /> {/* CS */}
+                                <col style={{ width: '45px' }} /> {/* PF */}
+                                <col style={{ width: '50px' }} /> {/* Faltas */}
+                                <col style={{ width: '60px' }} /> {/* Conceito */}
+                                <col style={{ width: '75px' }} /> {/* Resultado */}
+                              </colgroup>
+                              <thead>
+                                <tr className="bg-gray-100 border-b border-black text-black font-bold uppercase text-[8px]">
+                                  <th className="py-1 px-1.5 border-r border-black">Disciplinas</th>
+                                  <th className="py-1 px-1 text-center border-r border-black">S1</th>
+                                  <th className="py-1 px-1 text-center border-r border-black">S2</th>
+                                  <th className="py-1 px-1 text-center border-r border-black">AFC</th>
+                                  <th className="py-1 px-1 text-center border-r border-black">EX</th>
+                                  <th className="py-1 px-1 text-center border-r border-black">CS</th>
+                                  <th className="py-1 px-1 text-center border-r border-black font-bold bg-gray-50">PF</th>
+                                  <th className="py-1 px-1 text-center border-r border-black">Faltas</th>
+                                  <th className="py-1 px-1 text-center border-r border-black font-bold">Conceito</th>
+                                  <th className="py-1 px-1.5 text-right font-bold w-[75px] border-r border-black">Resultado</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-black font-medium text-[8.5px]">
+                                {clsSubjects.map(sub => {
+                                  const score = classGrades.find(g => g.subjectId === sub.id);
+                                  const absences = getStudentAbsences(targetStudent.id, sub.id, cls.id);
+                                  return (
+                                    <tr key={sub.id} className="hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50">
+                                      <td className="py-1 px-1.5 border-r border-black font-bold truncate">{sub.name}</td>
+                                      <td className="py-1 px-1 text-center border-r border-black font-mono">{score ? score.s1.toFixed(1) : '0.0'}</td>
+                                      <td className="py-1 px-1 text-center border-r border-black font-mono">{score ? score.s2.toFixed(1) : '0.0'}</td>
+                                      <td className="py-1 px-1 text-center border-r border-black font-mono">{score?.afc ? score.afc.toFixed(1) : '0.0'}</td>
+                                      <td className="py-1 px-1 text-center border-r border-black font-mono">{score?.extra !== null && score?.extra !== undefined ? score.extra.toFixed(1) : '-'}</td>
+                                      <td className="py-1 px-1 text-center border-r border-black font-mono">{score?.conselho !== null && score?.conselho !== undefined ? score.conselho.toFixed(1) : '-'}</td>
+                                      <td className="py-1 px-1 text-center border-r border-black font-black font-mono bg-gray-50">{score ? score.pf.toFixed(1) : '0.0'}</td>
+                                      <td className="py-1 px-1 text-center border-r border-black font-mono">{absences.total}</td>
+                                      <td className="py-1 px-1 text-center border-r border-black font-black">{score ? score.concept : 'D'}</td>
+                                      <td className={`py-1 px-1.5 text-right border-r border-black font-black text-[8.5px] ${
+                                        score?.result === 'APTO' ? 'text-emerald-700' : 'text-red-600'
+                                      }`}>
+                                        {score ? score.result : 'Pendente'}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })}
+
+                      {/* Legends Section */}
+                      <div className="border border-black p-2 bg-gray-50 rounded-sm text-[8px] text-black leading-relaxed font-semibold">
+                        <span className="font-bold uppercase mr-1">Legendas & Regras Institucionais:</span>
+                        S1 = Somatório de Notas S1 (AV1 + AV2 + AV3), S2 = Somatório de Notas S2 (AV4 + AV5 + AV6), PF = Pontuação Final.
+                        <br />
+                        <span className="font-bold">Critério de Conceito:</span> D = 0 a 59 (Insuficiente) | C = 60 a 75 (Regular) | B = 76 a 85 (Bom) | A = 86 a 100 (Excelente).
+                        <br />
+                        <span className="font-bold">Frequência mínima exigida:</span> 75% de presença nas aulas dadas. Abaixo disso, o aluno é retido por faltas (Resultado: REPROVADO).
+                      </div>
+
+                      {/* Signature Footer */}
+                      <div className="mt-8 pt-6 border-t border-gray-300 grid grid-cols-2 gap-8 text-center text-[9px] font-bold text-black select-none page-break-inside-avoid">
+                        <div>
+                          <div className="border-b border-black mx-auto w-52 mb-1"></div>
+                          <p className="uppercase">SECRETARIA ACADÊMICA</p>
+                        </div>
+                        <div>
+                          <div className="border-b border-black mx-auto w-52 mb-1"></div>
+                          <p className="uppercase">COORDENAÇÃO PEDAGÓGICA</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* DECLARAÇÃO DE ESCOLARIDADE */}
                 {documentType === 'decl_escolaridade' && targetStudent && (

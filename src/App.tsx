@@ -168,9 +168,26 @@ function MainAppLayout() {
           {/* Admin Simulation Toolbelt */}
           {currentUser.role === UserRole.ADMIN && (
             <div className="hidden lg:flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700">
-              <span className="px-2 text-slate-400 flex items-center gap-1 text-[10px] uppercase tracking-wider font-extrabold">
-                Simular:
-              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    const newWindow = window.open();
+                    if (newWindow) {
+                      newWindow.document.write("<html><head><title>Geral</title></head><body style='font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: #f8fafc; color: #1e293b;'><div style='text-align: center;'><h1 style='font-size: 24px; font-weight: 800; text-transform: uppercase; tracking: 0.1em; color: #1d4ed8; margin-bottom: 8px;'>Geral</h1><p style='font-size: 14px; color: #64748b; font-weight: 600;'>Página em construção</p></div></body></html>");
+                      newWindow.document.close();
+                    } else {
+                      alert("Geral - Em construção");
+                    }
+                  } catch (e) {
+                    alert("Geral - Em construção");
+                  }
+                }}
+                className="px-2.5 py-1 text-slate-400 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 flex items-center gap-1 text-[10px] uppercase tracking-wider font-extrabold cursor-pointer transition-all border-r border-slate-200 dark:border-slate-700 mr-1"
+                title="Geral"
+              >
+                Geral
+              </button>
               <button
                 type="button"
                 id="sim-role-admin"
