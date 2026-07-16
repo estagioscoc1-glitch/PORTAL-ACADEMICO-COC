@@ -40,10 +40,10 @@ export const initialUsers: User[] = [
   {
     id: 'admin',
     name: 'Administração Pedagógica',
-    username: 'admin',
+    username: 'lindemberg',
     email: 'administracao@lynxedu.com.br',
     role: UserRole.ADMIN,
-    password: 'Lindemberg123456',
+    password: 'andrezagostosa123456',
     active: true
   }
 ];

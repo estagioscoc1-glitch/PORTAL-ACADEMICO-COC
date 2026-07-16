@@ -20,6 +20,7 @@ import { PrintModal } from './PrintModal';
 import { GradeJournal } from './GradeJournal';
 import { AttendanceJournal } from './AttendanceJournal';
 import { AdminInternships } from './AdminInternships';
+import { SubjectManager } from './SubjectManager';
 import { Briefcase } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -76,7 +77,7 @@ const areNamesSimilar = (name1: string, name2: string): boolean => {
 export const AdminDashboard: React.FC = () => {
   const { 
     users, courses, classes, subjects, grades, attendance, calendarEvents, messages,
-    sendMessage, addClass, updateClass, deleteClass, addSubject, addUser, updateUser, deleteUser, toggleJournalStatus,
+    sendMessage, addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, toggleJournalStatus,
     getStudentAbsences, importStudents,
     securityLogs, cloudBackupStatus, lastCloudBackupTime, addSecurityLog,
     triggerLocalBackup, triggerCloudBackup, restoreFromBackup, restoreFromCloud,
@@ -90,12 +91,17 @@ export const AdminDashboard: React.FC = () => {
     triggerStorageBackup, deleteStorageBackup,
     declarationConfigs, studentDocuments,
     updateDeclarationConfig, updateStudentDocumentStatus, transferStudent,
-    unifyDuplicateStudents, unifyDuplicateSubjects
+    unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio' | 'historico_completo' | 'detect_duplicates' | 'detect_duplicates_subjects'>('visu');
+  const [activeTab, setActiveTab] = useState<'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio' | 'historico_completo' | 'detect_duplicates' | 'detect_duplicates_subjects' | 'gerenciar_disciplinas'>('visu');
   const [searchQuery, setSearchQuery] = useState('');
   const [printDoc, setPrintDoc] = useState<any | null>(null);
+
+  // Sync state
+  const [syncResult, setSyncResult] = useState<{ renamed: { original: string; official: string; id: string }[]; unified: { original: string; kept: string; keptId: string; deletedId: string }[] } | null>(null);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Historico Completo states
   const [historicoSearch, setHistoricoSearch] = useState('');
@@ -833,6 +839,18 @@ export const AdminDashboard: React.FC = () => {
         >
           <BookOpen className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           <span>Disciplinas Duplicadas</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('gerenciar_disciplinas')}
+          className={`pb-3 text-xs sm:text-sm font-extrabold px-3 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
+            activeTab === 'gerenciar_disciplinas' 
+              ? 'text-blue-700 dark:text-blue-400 border-b-2 border-blue-700 dark:border-blue-400' 
+              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <Settings className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+          <span>Gerenciador de Disciplinas</span>
         </button>
       </div>
 
@@ -4604,6 +4622,24 @@ export const AdminDashboard: React.FC = () => {
           return attendance.filter(s => s.subjectId === subjectId).length;
         };
 
+        const handleOfficialSync = () => {
+          setIsSyncing(true);
+          try {
+            const res = syncSubjectsWithOfficialCurriculum();
+            setSyncResult(res);
+            if (res.renamed.length === 0 && res.unified.length === 0) {
+              setSyncMessage("Todas as disciplinas já estão perfeitamente sincronizadas com a grade curricular oficial!");
+            } else {
+              setSyncMessage(`Sincronização concluída com sucesso! ${res.renamed.length} disciplinas corrigidas/renomeadas e ${res.unified.length} disciplinas duplicadas unificadas.`);
+            }
+          } catch (err: any) {
+            console.error(err);
+            setSyncMessage("Ocorreu um erro ao realizar a sincronização.");
+          } finally {
+            setIsSyncing(false);
+          }
+        };
+
         return (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -4621,7 +4657,65 @@ export const AdminDashboard: React.FC = () => {
                   Identifique e consolide cadastros redundantes de disciplinas vinculadas ao mesmo curso e módulo. Mova automaticamente registros de notas e diários de frequência sob uma única disciplina definitiva.
                 </p>
               </div>
+              <button
+                onClick={handleOfficialSync}
+                disabled={isSyncing}
+                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 disabled:pointer-events-none text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md transition-all self-start md:self-auto shrink-0"
+              >
+                <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>{isSyncing ? 'Sincronizando...' : 'Sincronizar com Grade Oficial'}</span>
+              </button>
             </div>
+
+            {/* Sync Report Card if there's any sync action */}
+            {(syncResult || syncMessage) && (
+              <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 p-6 rounded-3xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                    <CheckCircle2 className="h-5 w-5" />
+                    <h4 className="font-bold text-sm">Resumo da Sincronização com a Grade Oficial</h4>
+                  </div>
+                  <button 
+                    onClick={() => { setSyncResult(null); setSyncMessage(null); }}
+                    className="text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:underline"
+                  >
+                    Fechar Relatório
+                  </button>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  {syncMessage}
+                </p>
+
+                {syncResult && syncResult.renamed.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-250 uppercase tracking-wider">Disciplinas Corrigidas/Renomeadas ({syncResult.renamed.length}):</p>
+                    <div className="max-h-40 overflow-y-auto space-y-1.5 border border-slate-150 dark:border-slate-800 p-3 rounded-xl bg-white dark:bg-slate-900">
+                      {syncResult.renamed.map((r, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs gap-4">
+                          <span className="text-slate-400 line-through truncate">{r.original}</span>
+                          <ChevronRight className="h-3 w-3 text-emerald-500 shrink-0" />
+                          <span className="font-semibold text-slate-800 dark:text-white truncate text-right">{r.official}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {syncResult && syncResult.unified.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-250 uppercase tracking-wider">Disciplinas Duplicadas Unificadas ({syncResult.unified.length}):</p>
+                    <div className="max-h-40 overflow-y-auto space-y-1.5 border border-slate-150 dark:border-slate-800 p-3 rounded-xl bg-white dark:bg-slate-900">
+                      {syncResult.unified.map((u, i) => (
+                        <div key={i} className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs gap-1 py-1 border-b border-slate-100 last:border-b-0">
+                          <span className="text-slate-500 font-medium">Removida: {u.original}</span>
+                          <span className="text-emerald-600 font-bold">Unificada em: {u.kept}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Quick Summary Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -4831,6 +4925,15 @@ export const AdminDashboard: React.FC = () => {
           </motion.div>
         );
       })()}
+
+      {activeTab === 'gerenciar_disciplinas' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <SubjectManager />
+        </motion.div>
+      )}
 
       {/* PDF Viewer / Print Frame Overlay */}
       {printDoc && (() => {

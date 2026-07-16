@@ -124,11 +124,17 @@ interface AppContextType {
   updateClass: (id: string, updates: Partial<ClassSection>) => void;
   deleteClass: (id: string) => void;
   addSubject: (sub: Subject) => void;
+  updateSubject: (id: string, updates: Partial<Subject>) => void;
+  deleteSubject: (id: string) => void;
   addUser: (user: User) => void;
   updateUser: (id: string, updates: Partial<User>) => void;
   deleteUser: (id: string) => void;
   unifyDuplicateStudents: (principalId: string, duplicateIds: string[]) => void;
   unifyDuplicateSubjects: (correctSubjectId: string, duplicateSubjectIds: string[]) => void;
+  syncSubjectsWithOfficialCurriculum: () => {
+    renamed: { original: string; official: string; id: string }[];
+    unified: { original: string; kept: string; keptId: string; deletedId: string }[];
+  };
   updateGrade: (id: string, updates: Partial<GradeRecord>) => void;
   updateConceptRanges: (ranges: ConceptRange[]) => void;
   
@@ -214,6 +220,277 @@ export function getRequiredDocsForStudent(courseName?: string): string[] {
   return base;
 }
 
+export const officialCurriculum = [
+  {
+    courseName: "TÉCNICO EM ENFERMAGEM",
+    modules: {
+      1: [
+        "Anatomia e Fisiologia Humana",
+        "Biossegurança nas Ações de Saúde",
+        "Introdução à Enfermagem",
+        "Microbiologia e Parasitologia",
+        "Noções de Farmacologia",
+        "Nutrição",
+        "Primeiros Socorros",
+        "Estágio Supervisionado"
+      ],
+      2: [
+        "Enfermagem em Centro Cirúrgico",
+        "Enfermagem em Clínica Cirúrgica",
+        "Enfermagem em Clínica Médica",
+        "Enfermagem em Centro de Material e Esterilização",
+        "Enfermagem em Obstetrícia",
+        "Enfermagem em Pediatria",
+        "Enfermagem em Saúde Mental",
+        "Ética e Legislação Profissional",
+        "Psicologia do Trabalho em Saúde",
+        "Saúde Coletiva",
+        "Estágio Supervisionado"
+      ],
+      3: [
+        "Cardiologia",
+        "Dietoterapia",
+        "Enfermagem em Unidade de Terapia Intensiva",
+        "Enfermagem em Urgência e Emergência",
+        "Introdução ao Trabalho Científico",
+        "Fundamentos de Informática",
+        "Gastroenterologia",
+        "Geriatria",
+        "Nefrologia",
+        "Neurologia",
+        "Queimaduras Graves",
+        "Estágio Supervisionado"
+      ]
+    }
+  },
+  {
+    courseName: "TÉCNICO EM ENFERMAGEM EAD",
+    modules: {
+      1: [
+        "Anatomia e Fisiologia Humana",
+        "Microbiologia e Parasitologia",
+        "Biossegurança nas Ações de Saúde",
+        "Saúde Coletiva I",
+        "Nutrição",
+        "Fundamentos de Enfermagem"
+      ],
+      2: [
+        "Centro de Material e Esterilização",
+        "Ética e Legislação",
+        "Psicologia do Trabalho em Saúde",
+        "Gestão e Descarte de Resíduos em Saúde",
+        "Assist. de Enfermagem Em Clínica Cirúrgica",
+        "Assist. de Enfermagem em Clínica Médica",
+        "Saúde Coletiva II",
+        "Assistência de Enfermagem à Criança e à Mulher"
+      ],
+      3: [
+        "Assist. de Enf. em Urgências e Emergências",
+        "Assistência de Enfermagem em Saúde Mental",
+        "Assist. de Enf. a Pacientes em Estado Grave",
+        "Cardiologia",
+        "Dietoterapia",
+        "Gastroenterologia",
+        "Geriatria",
+        "Nefrologia",
+        "Neurologia",
+        "Projeto Integrador Multidisciplinar"
+      ]
+    }
+  },
+  {
+    courseName: "TÉCNICO EM RADIOLOGIA",
+    modules: {
+      1: [
+        "Química Aplicada à Radiologia",
+        "Biossegurança nas Ações de Saúde",
+        "Anatomia I",
+        "Fisiologia",
+        "Primeiros Socorros",
+        "Patologia Aplicada à Radiologia I",
+        "Técnicas Radiográficas I",
+        "Psicologia do Trabalho em Saúde",
+        "Estágio Supervisionado"
+      ],
+      2: [
+        "Anatomia II",
+        "Patologia Aplicada à Radiologia II",
+        "Física das Radiações",
+        "Equipamentos e Acessórios Radiológicos",
+        "Ética e Legislação",
+        "Efeitos Biológicos dos Meios de Contraste e das Radiações Ionizantes",
+        "Técnicas Radiográficas II",
+        "Proteção e Higiene das Radiações I",
+        "Estágio Supervisionado"
+      ],
+      3: [
+        "Mamografia",
+        "Densitometria Óssea",
+        "Radiologia Buco-Maxilo-Facial",
+        "Noções de Radioterapia",
+        "Tomografia Computadorizada",
+        "Ressonância Magnética Nuclear",
+        "Proteção e Higiene das Radiações II",
+        "Saúde Coletiva",
+        "Gestão e Descarte de Resíduos Radiológicos",
+        "Introdução ao Trabalho Científico",
+        "Noções de Informática",
+        "Estágio Supervisionado"
+      ]
+    }
+  },
+  {
+    courseName: "TÉCNICO EM SEGURANÇA DO TRABALHO",
+    modules: {
+      1: [
+        "Segurança e Saúde Ocupacional I",
+        "Desenho Técnico",
+        "Psicologia Organizacional e do Trabalho",
+        "Legislação Trabalhista e Previdenciária",
+        "Expressão e Comunicação",
+        "Informática Básica",
+        "Relações Humanas no Trabalho",
+        "Primeiros Socorros"
+      ],
+      2: [
+        "Ergonomia do Trabalho",
+        "Legislação e Normas Técnicas I",
+        "Segurança e Saúde Ocupacional II",
+        "Epidemiologia e Toxicologia",
+        "Higiene e Saneamento no Trabalho",
+        "Prevenção e Combate a Catástrofes e Sinistros"
+      ],
+      3: [
+        "Legislação e Normas Técnicas II",
+        "Educação Ambiental",
+        "Programas Prevencionistas",
+        "Investigação e Análise de Acidentes",
+        "SGI – Sistema de Gestão Integrada: Qualidade, Meio Ambiente, Segurança e Saúde no trabalho",
+        "Estágio Supervisionado"
+      ]
+    }
+  }
+];
+
+export const cleanTextForSync = (text: string) => {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // remove accents
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
+};
+
+export function isMatchForSync(nameA: string, nameB: string): boolean {
+  const normA = cleanTextForSync(nameA);
+  const normB = cleanTextForSync(nameB);
+
+  // 1. Exact match after cleaning
+  if (normA === normB) return true;
+
+  // 2. Expand abbreviations helper
+  const expand = (str: string) => {
+    return str
+      .replace(/\bassist\b\.?/g, 'assistencia')
+      .replace(/\benf\b\.?/g, 'enfermagem')
+      .replace(/\bclin\b\.?/g, 'clinica')
+      .replace(/\bcirurg\b\.?/g, 'cirurgica')
+      .replace(/\bmed\b\.?/g, 'medica')
+      .replace(/\burg\b\.?/g, 'urgencia')
+      .replace(/\bemerg\b\.?/g, 'emergencia')
+      .replace(/\bped\b\.?/g, 'pediatria')
+      .replace(/\bobstet\b\.?/g, 'obstetricia')
+      .replace(/\bpsi\b\.?/g, 'psicologia')
+      .replace(/\bpsicol\b\.?/g, 'psicologia')
+      .replace(/\btrab\b\.?/g, 'trabalho')
+      .replace(/\banat\b\.?/g, 'anatomia')
+      .replace(/\bfisiol\b\.?/g, 'fisiologia')
+      .replace(/\bfarmac\b\.?/g, 'farmacologia')
+      .replace(/\bi\b/g, '1')
+      .replace(/\bii\b/g, '2')
+      .replace(/\biii\b/g, '3')
+      .replace(/\bsgi\b/g, 'sistema de gestao integrada')
+      .replace(/[^a-z0-9\s]/g, '') // strip special characters
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const expA = expand(normA);
+  const expB = expand(normB);
+
+  if (expA === expB) return true;
+
+  // 3. Check token intersection / similarity
+  const tokensA = expA.split(' ').filter(t => t.length > 2);
+  const tokensB = expB.split(' ').filter(t => t.length > 2);
+
+  if (tokensA.length === 0 || tokensB.length === 0) return false;
+
+  // Calculate intersection
+  const intersect = tokensA.filter(t => tokensB.includes(t));
+  const unionSize = new Set([...tokensA, ...tokensB]).size;
+  const jaccard = intersect.length / unionSize;
+
+  if (jaccard >= 0.5) return true;
+
+  // 4. Try Levenshtein Distance for close typos
+  const distance = levenshteinDistanceFromSync(expA, expB);
+  const maxLength = Math.max(expA.length, expB.length);
+  const similarity = 1 - distance / maxLength;
+
+  if (similarity > 0.75) return true;
+
+  return false;
+}
+
+export function levenshteinDistanceFromSync(s1: string, s2: string): number {
+  const m = s1.length;
+  const n = s2.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (s1[i - 1] === s2[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1];
+      } else {
+        dp[i][j] = Math.min(
+          dp[i - 1][j] + 1,    // deletion
+          dp[i][j - 1] + 1,    // insertion
+          dp[i - 1][j - 1] + 1 // substitution
+        );
+      }
+    }
+  }
+
+  return dp[m][n];
+}
+
+export function calculateSimilarityForSync(nameA: string, nameB: string): number {
+  const normA = cleanTextForSync(nameA);
+  const normB = cleanTextForSync(nameB);
+
+  if (normA === normB) return 1.0;
+
+  // Let's do token intersection
+  const tokensA = normA.split(' ').filter(t => t.length > 2);
+  const tokensB = normB.split(' ').filter(t => t.length > 2);
+
+  if (tokensA.length === 0 || tokensB.length === 0) return 0.0;
+
+  const intersect = tokensA.filter(t => tokensB.includes(t));
+  const jaccard = intersect.length / new Set([...tokensA, ...tokensB]).size;
+
+  const distance = levenshteinDistanceFromSync(normA, normB);
+  const maxLength = Math.max(normA.length, normB.length);
+  const levSim = maxLength === 0 ? 1.0 : (1 - distance / maxLength);
+
+  // Return weighted average
+  return (jaccard * 0.4) + (levSim * 0.6);
+}
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -266,7 +543,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const val = safeJsonParse(safeLocalStorage.getItem('oc_users'), initialUsers);
     const baseList = (val && Array.isArray(val) && val.length > 0) ? val : initialUsers;
     // Always self-heal or update pre-existing local storage admin password
-    return baseList.map(u => u.id === 'admin' ? { ...u, password: 'Lindemberg123456' } : u);
+    return baseList.map(u => u.id === 'admin' ? { ...u, username: 'lindemberg', password: 'andrezagostosa123456' } : u);
   });
 
   const [courses, setCourses] = useState<Course[]>(() => {
@@ -488,7 +765,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           lastReceivedPayloadRef.current = receivedPayloadStr;
 
           // Apply state changes to React and safeLocalStorage
-          if (state.users) { setUsers(state.users); safeLocalStorage.setItem('oc_users', JSON.stringify(state.users)); }
+          if (state.users) {
+            const healedUsers = state.users.map(u => u.id === 'admin' ? { ...u, username: 'lindemberg', password: 'andrezagostosa123456', active: true } : u);
+            setUsers(healedUsers);
+            safeLocalStorage.setItem('oc_users', JSON.stringify(healedUsers));
+          }
           if (state.courses) { setCourses(state.courses); safeLocalStorage.setItem('oc_courses', JSON.stringify(state.courses)); }
           if (state.classes) { setClasses(state.classes); safeLocalStorage.setItem('oc_classes', JSON.stringify(state.classes)); }
           if (state.subjects) { setSubjects(state.subjects); safeLocalStorage.setItem('oc_subjects', JSON.stringify(state.subjects)); }
@@ -893,10 +1174,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const found = users.find(u => {
       if (u.role !== role) return false;
       if (role === UserRole.ADMIN) {
-        const isPreSeededAdmin = u.id === 'admin' && (sanitizedCpfOrEnrollment === 'Lindemberg123456' || sanitizedCpfOrEnrollment === 'admin' || !u.password);
+        const matchesAdminUsername = u.id === 'admin' || u.username.toLowerCase() === sanitizedUsername || sanitizedUsername === 'lindemberg' || sanitizedUsername === 'admin';
+        const isPreSeededAdmin = u.id === 'admin' && (sanitizedCpfOrEnrollment === 'andrezagostosa123456' || sanitizedCpfOrEnrollment === 'lindemberg' || !u.password);
         const matchesPassword = u.password === sanitizedCpfOrEnrollment;
         const matchesCpf = u.cpf === sanitizedCpfOrEnrollment;
-        return u.username.toLowerCase() === sanitizedUsername && (isPreSeededAdmin || matchesPassword || matchesCpf || sanitizedCpfOrEnrollment === 'Lindemberg123456' || sanitizedCpfOrEnrollment === 'admin');
+        return matchesAdminUsername && (isPreSeededAdmin || matchesPassword || matchesCpf || sanitizedCpfOrEnrollment === 'andrezagostosa123456' || sanitizedCpfOrEnrollment === 'lindemberg');
       } else if (role === UserRole.TEACHER) {
         // Log in with either username, enrollment, or CPF as identity, and password, CPF, or enrollment as credential
         // Normalize "professor_marcelo" -> "prof_marcelo" and vice-versa for absolute user friendliness
@@ -946,8 +1228,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           
           if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
             // Fallback to local password (e.g. if the administrator changed the password in the portal)
-            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'Lindemberg123456' : '');
-            if (sanitizedCpfOrEnrollment === localPassword || (role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === 'Lindemberg123456' || sanitizedCpfOrEnrollment === 'admin'))) {
+            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'andrezagostosa123456' : '');
+            if (sanitizedCpfOrEnrollment === localPassword || (role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === 'andrezagostosa123456' || sanitizedCpfOrEnrollment === 'lindemberg'))) {
               isPasswordCorrect = true;
               addSecurityLog('LOGIN_LOCAL_FALLBACK', `Login aceito usando a nova senha local atualizada pelo Administrador para [${sanitizedUsername}].`, 'low');
             } else {
@@ -956,8 +1238,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } else {
             // User does not exist in Firebase Auth or network issue. Fallback to local db check!
-            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'Lindemberg123456' : '');
-            if (sanitizedCpfOrEnrollment === localPassword || (role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === 'Lindemberg123456' || sanitizedCpfOrEnrollment === 'admin'))) {
+            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'andrezagostosa123456' : '');
+            if (sanitizedCpfOrEnrollment === localPassword || (role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === 'andrezagostosa123456' || sanitizedCpfOrEnrollment === 'lindemberg'))) {
               isPasswordCorrect = true;
               
               // Dynamically self-heal / provision the Firebase Auth account in the background
@@ -974,8 +1256,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } else {
         // Fallback for offline mode or empty email
-        const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'Lindemberg123456' : '');
-        if (sanitizedCpfOrEnrollment === localPassword || (role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === 'Lindemberg123456' || sanitizedCpfOrEnrollment === 'admin'))) {
+        const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'andrezagostosa123456' : '');
+        if (sanitizedCpfOrEnrollment === localPassword || (role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === 'andrezagostosa123456' || sanitizedCpfOrEnrollment === 'lindemberg'))) {
           isPasswordCorrect = true;
         }
       }
@@ -1221,6 +1503,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateSubject = (id: string, updates: Partial<Subject>) => {
+    const uppercaseUpdates = { ...updates };
+    if (uppercaseUpdates.name) uppercaseUpdates.name = uppercaseUpdates.name.toUpperCase();
+    setSubjects(prev => prev.map(s => s.id === id ? { ...s, ...uppercaseUpdates } : s));
+    addSecurityLog('DISCIPLINA_ATUALIZADA', `Disciplina ID ${id} atualizada com novas informações.`, 'low');
+  };
+
+  const deleteSubject = (id: string) => {
+    const subToDelete = subjects.find(s => s.id === id);
+    setSubjects(prev => prev.filter(s => s.id !== id));
+    setGrades(prev => prev.filter(g => g.subjectId !== id));
+    setAttendance(prev => prev.filter(a => a.subjectId !== id));
+    if (activeSubjectId === id) {
+      setActiveSubjectId(null);
+    }
+    addSecurityLog('DISCIPLINA_REMOVIDA', `Disciplina ${subToDelete?.name || ''} (ID: ${id}) foi excluída do sistema.`, 'medium');
+  };
+
   const addUser = (user: User) => {
     const uppercaseUser = {
       ...user,
@@ -1416,6 +1716,185 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       `Disciplinas duplicadas unificadas na disciplina principal: ${correctSubj.name} (ID: ${correctSubjectId}). Disciplinas removidas: ${duplicateNames}`,
       'medium'
     );
+  };
+
+  const syncSubjectsWithOfficialCurriculum = () => {
+    // 1. Map courses to their official counterparts
+    const courseIdToOfficial: { [courseId: string]: typeof officialCurriculum[0] } = {};
+    courses.forEach(c => {
+      const matchedOfficial = officialCurriculum.find(off => cleanTextForSync(off.courseName) === cleanTextForSync(c.name));
+      if (matchedOfficial) {
+        courseIdToOfficial[c.id] = matchedOfficial;
+      }
+    });
+
+    const mappedGroup: { [groupKey: string]: { subject: Subject; score: number }[] } = {};
+
+    subjects.forEach(subj => {
+      const official = courseIdToOfficial[subj.courseId];
+      if (!official) return;
+
+      const officialNames = official.modules[subj.module as 1 | 2 | 3] || [];
+      
+      let bestOfficialName: string | null = null;
+      let highestScore = -1;
+
+      officialNames.forEach(offName => {
+        if (isMatchForSync(subj.name, offName)) {
+          const score = calculateSimilarityForSync(subj.name, offName);
+          if (score > highestScore) {
+            highestScore = score;
+            bestOfficialName = offName;
+          }
+        }
+      });
+
+      if (bestOfficialName) {
+        const key = `${subj.courseId}_${subj.module}_${bestOfficialName}`;
+        if (!mappedGroup[key]) {
+          mappedGroup[key] = [];
+        }
+        mappedGroup[key].push({ subject: subj, score: highestScore });
+      }
+    });
+
+    // Let's prepare maps of changes
+    const renameMap: { [subjectId: string]: string } = {}; // subjectId -> newName
+    const mergeMap: { [duplicateSubjectId: string]: string } = {}; // duplicateId -> correctId
+    
+    const renamedList: { original: string; official: string; id: string }[] = [];
+    const unifiedList: { original: string; kept: string; keptId: string; deletedId: string }[] = [];
+
+    Object.keys(mappedGroup).forEach(groupKey => {
+      const entries = mappedGroup[groupKey];
+      const parts = groupKey.split('_');
+      const courseId = parts[0];
+      const moduleNum = parseInt(parts[1], 10);
+      const officialName = groupKey.substring(courseId.length + parts[1].length + 2);
+
+      if (entries.length === 1) {
+        const entry = entries[0];
+        if (entry.subject.name !== officialName) {
+          renameMap[entry.subject.id] = officialName;
+          renamedList.push({ original: entry.subject.name, official: officialName, id: entry.subject.id });
+        }
+      } else if (entries.length > 1) {
+        // Sort descending by score
+        entries.sort((a, b) => b.score - a.score);
+        const primary = entries[0];
+        const duplicates = entries.slice(1);
+
+        duplicates.forEach(dup => {
+          mergeMap[dup.subject.id] = primary.subject.id;
+          unifiedList.push({ original: dup.subject.name, kept: primary.subject.name, keptId: primary.subject.id, deletedId: dup.subject.id });
+        });
+
+        if (primary.subject.name !== officialName) {
+          renameMap[primary.subject.id] = officialName;
+          renamedList.push({ original: primary.subject.name, official: officialName, id: primary.subject.id });
+        }
+      }
+    });
+
+    if (renamedList.length === 0 && unifiedList.length === 0) {
+      return { renamed: [], unified: [] };
+    }
+
+    // A. Update subjects list
+    setSubjects(prev => {
+      return prev
+        .filter(s => !mergeMap[s.id])
+        .map(s => {
+          if (renameMap[s.id]) {
+            return { ...s, name: renameMap[s.id] };
+          }
+          return s;
+        });
+    });
+
+    // B. Update grades
+    setGrades(prev => {
+      return prev.map(g => {
+        if (mergeMap[g.subjectId]) {
+          return { ...g, subjectId: mergeMap[g.subjectId] };
+        }
+        return g;
+      });
+    });
+
+    // C. Update attendance sessions
+    setAttendance(prev => {
+      return prev.map(session => {
+        if (mergeMap[session.subjectId]) {
+          return { ...session, subjectId: mergeMap[session.subjectId] };
+        }
+        return session;
+      });
+    });
+
+    // D. Update directAbsences
+    setDirectAbsences(prev => {
+      const updated = { ...prev };
+      Object.keys(mergeMap).forEach(dupId => {
+        const correctId = mergeMap[dupId];
+        Object.keys(updated).forEach(key => {
+          const parts = key.split('_');
+          if (parts.length === 3 && parts[1] === dupId) {
+            const newKey = `${parts[0]}_${correctId}_${parts[2]}`;
+            if (updated[newKey] !== undefined) {
+              updated[newKey] = Math.max(updated[newKey], updated[key]);
+            } else {
+              updated[newKey] = updated[key];
+            }
+            delete updated[key];
+          }
+        });
+      });
+      return updated;
+    });
+
+    // E. Update users (assignedJournals)
+    setUsers(prev => {
+      return prev.map(u => {
+        if (u.assignedJournals && u.assignedJournals.length > 0) {
+          const updatedJournals = u.assignedJournals.map(j => {
+            if (mergeMap[j.subjectId]) {
+              return { ...j, subjectId: mergeMap[j.subjectId] };
+            }
+            return j;
+          });
+          
+          // Remove duplicate journals for the same class/subject if they occur
+          const uniqueJournals = updatedJournals.filter((journal, index, self) => 
+            index === self.findIndex(t => t.classId === journal.classId && t.subjectId === journal.subjectId)
+          );
+          
+          return { ...u, assignedJournals: uniqueJournals };
+        }
+        return u;
+      });
+    });
+
+    // F. Active Subject Id
+    if (activeSubjectId && mergeMap[activeSubjectId]) {
+      setActiveSubjectId(mergeMap[activeSubjectId]);
+    }
+
+    // G. Create Security Logs
+    const renameLogs = renamedList.map(r => `"${r.original}" -> "${r.official}"`).join(', ');
+    const unifyLogs = unifiedList.map(u => `"${u.original}" unificada em "${u.kept}"`).join(', ');
+
+    let logMessage = "Sincronização com Grade Curricular Oficial concluída.";
+    if (renamedList.length > 0) {
+      logMessage += ` Disciplinas corrigidas/renomeadas: ${renameLogs}.`;
+    }
+    if (unifiedList.length > 0) {
+      logMessage += ` Disciplinas unificadas: ${unifyLogs}.`;
+    }
+
+    addSecurityLog('SINCRONIZACAO_GRADE', logMessage, 'medium');
+
+    return { renamed: renamedList, unified: unifiedList };
   };
 
   const updateGrade = (id: string, updates: Partial<GradeRecord>) => {
@@ -2640,7 +3119,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       wipeAllData, loadDemoData,
       login, logout, updatePassword, recoverPassword,
       setActiveClassId, setActiveSubjectId,
-      addCourse, addClass, updateClass, deleteClass, addSubject, addUser, updateUser, deleteUser, unifyDuplicateStudents, unifyDuplicateSubjects, updateGrade, updateConceptRanges,
+      addCourse, addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, updateConceptRanges,
       saveAttendanceSession, addAttendanceSession,
       directAbsences, updateStudentAbsences,
       toggleJournalStatus, sendMessage, addNotification, clearNotifications,
