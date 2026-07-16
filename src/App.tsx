@@ -26,7 +26,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { 
   GraduationCap, LogOut, Sun, Moon, Sparkles, ArrowLeftRight,
   Printer, Bell, Calendar, Clock, CheckCircle, Lock, ShieldCheck,
-  MessageSquare, Users, ExternalLink
+  MessageSquare, Users, ExternalLink, Database, AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageCenter } from './components/MessageCenter';
@@ -35,7 +35,7 @@ import { safeLocalStorage } from './lib/safeStorage';
 import HelperBot from './components/HelperBot';
 
 function MainAppLayout() {
-  const { currentUser, logout, users, notifications, isLoading } = useApp();
+  const { currentUser, logout, users, notifications, isLoading, cloudBackupStatus } = useApp();
   
   // Messaging center state
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
@@ -361,6 +361,47 @@ function MainAppLayout() {
           >
             Sair do Simulador
           </button>
+        </div>
+      )}
+
+      {/* Firestore Quota Exceeded Alert Banner */}
+      {cloudBackupStatus === 'quota_exceeded' && (
+        <div id="firestore-quota-alert-banner" className="bg-amber-50 dark:bg-amber-950/20 border-b border-amber-200 dark:border-amber-900/30 p-4 select-none no-print">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-100 dark:bg-amber-950/55 rounded-xl text-amber-700 dark:text-amber-400 shrink-0">
+                <Database className="h-5 w-5 animate-pulse" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-sm font-extrabold text-amber-800 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500 animate-bounce" /> Limite de Cota do Banco de Dados Atingido (Firestore)
+                </h4>
+                <p className="text-xs text-amber-600 dark:text-amber-400 leading-relaxed">
+                  O limite diário gratuito de operações do Google Firebase foi excedido hoje. 
+                  Sua navegação continua ativa no modo <strong>Offline-First</strong>: todas as suas alterações estão sendo 
+                  salvas localmente com segurança no seu navegador e serão sincronizadas com a nuvem automaticamente assim que a cota resetar amanhã.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0">
+              <a
+                href="https://console.firebase.google.com/project/thematic-fragment-xnn32/firestore/databases/ai-studio-portalacadmicoco-9b435cd6-e6c1-4aa9-bac1-5673a3ef5df0/data?openUpgradeDialog=true"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] font-black uppercase tracking-wider bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-sm transition-all text-center shrink-0 cursor-pointer"
+              >
+                Fazer Upgrade <ExternalLink className="h-3 w-3" />
+              </a>
+              <a
+                href="https://firebase.google.com/pricing#cloud-firestore"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-950/25 px-3.5 py-2 rounded-xl shadow-sm transition-all text-center shrink-0 cursor-pointer"
+              >
+                Informações de Cota
+              </a>
+            </div>
+          </div>
         </div>
       )}
 

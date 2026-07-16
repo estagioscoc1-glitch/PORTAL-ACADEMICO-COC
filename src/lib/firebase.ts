@@ -117,7 +117,7 @@ export async function saveStateToCloud(state: SystemStatePayload): Promise<boole
     return true;
   } catch (error: any) {
     console.error('Firestore write failed:', error?.message || error);
-    return false;
+    throw error;
   }
 }
 
@@ -139,7 +139,7 @@ export async function loadStateFromCloud(): Promise<SystemStatePayload | null | 
     return null;
   } catch (error: any) {
     console.error('Firestore read failed:', error?.message || error);
-    return { isOffline: true };
+    throw error;
   }
 }
 

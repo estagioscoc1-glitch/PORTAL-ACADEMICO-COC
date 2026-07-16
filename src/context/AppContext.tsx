@@ -128,6 +128,7 @@ interface AppContextType {
   updateUser: (id: string, updates: Partial<User>) => void;
   deleteUser: (id: string) => void;
   unifyDuplicateStudents: (principalId: string, duplicateIds: string[]) => void;
+  unifyDuplicateSubjects: (correctSubjectId: string, duplicateSubjectIds: string[]) => void;
   updateGrade: (id: string, updates: Partial<GradeRecord>) => void;
   updateConceptRanges: (ranges: ConceptRange[]) => void;
   
@@ -163,7 +164,7 @@ interface AppContextType {
 
   // Security and Backups
   securityLogs: any[];
-  cloudBackupStatus: 'idle' | 'syncing' | 'success' | 'error' | 'offline';
+  cloudBackupStatus: 'idle' | 'syncing' | 'success' | 'error' | 'offline' | 'quota_exceeded';
   lastCloudBackupTime: string | null;
   addSecurityLog: (eventType: string, details: string, severity?: 'low' | 'medium' | 'high') => void;
   triggerLocalBackup: () => void;
@@ -338,7 +339,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ]);
   });
 
-  const [cloudBackupStatus, setCloudBackupStatus] = useState<'idle' | 'syncing' | 'success' | 'error' | 'offline'>('idle');
+  const [cloudBackupStatus, setCloudBackupStatus] = useState<'idle' | 'syncing' | 'success' | 'error' | 'offline' | 'quota_exceeded'>('idle');
   const [lastCloudBackupTime, setLastCloudBackupTime] = useState<string | null>(() => {
     return safeLocalStorage.getItem('oc_last_cloud_backup_time') || new Date().toISOString();
   });
@@ -442,7 +443,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const stateDocRef = doc(db, 'academic_portal', 'state_node');
 
-    const unsubscribe = onSnapshot(stateDocRef, async (docSnap) => {
+    let unsubscribe: (() => void) | undefined;
+
+    unsubscribe = onSnapshot(stateDocRef, async (docSnap) => {
       try {
         if (docSnap.exists()) {
           const state = docSnap.data() as SystemStatePayload;
@@ -554,11 +557,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }, 400);
       }
     }, (err) => {
+      if (unsubscribe) {
+        try {
+          unsubscribe();
+        } catch (e) {
+          console.error('Erro ao cancelar inscrição do Firestore:', e);
+        }
+      }
+      const isQuota = err?.code === 'resource-exhausted' || 
+                      err?.message?.toLowerCase().includes('quota') || 
+                      err?.message?.toLowerCase().includes('exhausted') ||
+                      err?.message?.toLowerCase().includes('limit exceeded');
       const isOffline = err?.message?.toLowerCase().includes('offline') || 
                         err?.code === 'unavailable' || 
                         err?.message?.toLowerCase().includes('network') || 
                         err?.message?.toLowerCase().includes('unreachable');
-      if (isOffline) {
+      if (isQuota) {
+        console.error('Cota do Firestore esgotada:', err);
+        setCloudBackupStatus('quota_exceeded');
+        addSecurityLog('SINC_NUVEM_COTA', 'Limite de cota de leitura/escrita diária do Firestore atingido.', 'medium');
+      } else if (isOffline) {
         console.warn('Portal acadêmico operando em modo offline-first (Firestore indisponível).');
         setCloudBackupStatus('offline');
         addSecurityLog('SINC_NUVEM_OFFLINE', 'Portal operando em modo local/offline (Firestore temporariamente indisponível).', 'low');
@@ -570,7 +588,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      if (unsubscribe) {
+        try {
+          unsubscribe();
+        } catch (e) {
+          console.error('Erro ao limpar inscrição do Firestore no unmount:', e);
+        }
+      }
+    };
   }, []);
 
   const updateCalendarEventDate = (id: string, date: string) => {
@@ -1316,6 +1342,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
+  const unifyDuplicateSubjects = (correctSubjectId: string, duplicateSubjectIds: string[]) => {
+    const correctSubj = subjects.find(s => s.id === correctSubjectId);
+    if (!correctSubj) return;
+
+    // 1. Move all GradeRecord of duplicateSubjectIds to correctSubjectId
+    setGrades(prev => prev.map(g => {
+      if (duplicateSubjectIds.includes(g.subjectId)) {
+        return { ...g, subjectId: correctSubjectId };
+      }
+      return g;
+    }));
+
+    // 2. Move all AttendanceSession of duplicateSubjectIds to correctSubjectId
+    setAttendance(prev => prev.map(session => {
+      if (duplicateSubjectIds.includes(session.subjectId)) {
+        return { ...session, subjectId: correctSubjectId };
+      }
+      return session;
+    }));
+
+    // 3. Move directAbsences keys of duplicateSubjectIds to correctSubjectId
+    setDirectAbsences(prev => {
+      const updated = { ...prev };
+      duplicateSubjectIds.forEach(dupId => {
+        Object.keys(updated).forEach(key => {
+          const parts = key.split('_');
+          if (parts.length === 3 && parts[1] === dupId) {
+            const newKey = `${parts[0]}_${correctSubjectId}_${parts[2]}`;
+            if (updated[newKey] !== undefined) {
+              updated[newKey] = Math.max(updated[newKey], updated[key]);
+            } else {
+              updated[newKey] = updated[key];
+            }
+            delete updated[key];
+          }
+        });
+      });
+      return updated;
+    });
+
+    // 4. Update assignedJournals for users (teachers)
+    setUsers(prev => prev.map(u => {
+      if (u.assignedJournals && u.assignedJournals.length > 0) {
+        const updatedJournals = u.assignedJournals.map(j => {
+          if (duplicateSubjectIds.includes(j.subjectId)) {
+            return { ...j, subjectId: correctSubjectId };
+          }
+          return j;
+        });
+        
+        // Remove duplicate journals for the same class/subject if they occur
+        const uniqueJournals = updatedJournals.filter((journal, index, self) => 
+          index === self.findIndex(t => t.classId === journal.classId && t.subjectId === journal.subjectId)
+        );
+        
+        return { ...u, assignedJournals: uniqueJournals };
+      }
+      return u;
+    }));
+
+    // 5. Remove duplicate subjects from subjects list
+    setSubjects(prev => prev.filter(s => !duplicateSubjectIds.includes(s.id)));
+
+    // 6. Record a security log
+    const duplicateNames = duplicateSubjectIds.map(id => {
+      const s = subjects.find(x => x.id === id);
+      return `${s?.name || ''} (ID: ${id})`;
+    }).join(', ');
+
+    addSecurityLog(
+      'UNIFICACAO_DISCIPLINAS',
+      `Disciplinas duplicadas unificadas na disciplina principal: ${correctSubj.name} (ID: ${correctSubjectId}). Disciplinas removidas: ${duplicateNames}`,
+      'medium'
+    );
+  };
+
   const updateGrade = (id: string, updates: Partial<GradeRecord>) => {
     setGrades(prev => {
       const exists = prev.some(g => g.id === id);
@@ -1758,7 +1860,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const { subjectName, records } = subItem;
           let subject = currentSubjects.find(s => 
             s.name.trim().toLowerCase() === subjectName.trim().toLowerCase() &&
-            s.courseId === course!.id
+            s.courseId === course!.id &&
+            s.module === Number(clsModule)
           );
           if (!subject) {
             subject = {
@@ -2160,9 +2263,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addSecurityLog('BACKUP_NUVEM_FALHA', 'Falha ao forçar backup síncrono na nuvem Firestore.', 'medium');
         return false;
       }
-    } catch (err) {
-      setCloudBackupStatus('error');
-      addSecurityLog('BACKUP_NUVEM_FALHA', `Erro inesperado no backup em nuvem: ${(err as Error).message}`, 'medium');
+    } catch (err: any) {
+      const isQuota = err?.code === 'resource-exhausted' || 
+                      err?.message?.toLowerCase().includes('quota') || 
+                      err?.message?.toLowerCase().includes('exhausted') ||
+                      err?.message?.toLowerCase().includes('limit exceeded');
+      if (isQuota) {
+        setCloudBackupStatus('quota_exceeded');
+        addSecurityLog('BACKUP_NUVEM_COTA', 'Limite de cota de escrita diária do Firestore atingido durante backup manual.', 'medium');
+      } else {
+        setCloudBackupStatus('error');
+        addSecurityLog('BACKUP_NUVEM_FALHA', `Erro inesperado no backup em nuvem: ${(err as Error).message}`, 'medium');
+      }
       return false;
     }
   };
@@ -2258,7 +2370,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCloudBackupStatus('success');
       addSecurityLog('RESTAURACAO_NUVEM', 'Portal inteiramente restaurado com sucesso do banco de dados na nuvem Firestore.', 'high');
       return { success: true, message: 'Sistema sincronizado e recuperado com sucesso do banco de dados na nuvem!' };
-    } catch (err) {
+    } catch (err: any) {
+      const isQuota = err?.code === 'resource-exhausted' || 
+                      err?.message?.toLowerCase().includes('quota') || 
+                      err?.message?.toLowerCase().includes('exhausted') ||
+                      err?.message?.toLowerCase().includes('limit exceeded');
+      if (isQuota) {
+        setCloudBackupStatus('quota_exceeded');
+        addSecurityLog('RESTAURACAO_NUVEM_COTA', 'Limite de cota de leitura diária do Firestore atingido durante restauração.', 'medium');
+        return { success: false, message: 'Erro: Limite de cota diária do Firestore excedido. Seus dados estão preservados localmente.' };
+      }
       setCloudBackupStatus('error');
       return { success: false, message: `Erro crítico ao ler dados da nuvem Firestore: ${(err as Error).message}` };
     }
@@ -2428,6 +2549,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Automated background backup running with debounced real-time autosave (persists replica in Google Cloud Firestore)
   useEffect(() => {
     if (isLoading) return; // Prevent overwriting cloud data during initial loading phase
+    if (cloudBackupStatus === 'quota_exceeded') return; // Do not attempt saves if quota is exceeded
 
     const currentPayload = {
       users, courses, classes, subjects, grades, attendance,
@@ -2450,34 +2572,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       
       setCloudBackupStatus('syncing');
-      const success = await saveStateToCloud(payload);
-      
-      if (success) {
-        // Prevent re-triggering due to this exact state
-        lastReceivedPayloadRef.current = currentPayloadStr;
+      try {
+        const success = await saveStateToCloud(payload);
         
-        const now = new Date();
-        setLastCloudBackupTime(now.toISOString());
-        safeLocalStorage.setItem('oc_last_cloud_backup_time', now.toISOString());
-        setCloudBackupStatus('success');
+        if (success) {
+          // Prevent re-triggering due to this exact state
+          lastReceivedPayloadRef.current = currentPayloadStr;
+          
+          const now = new Date();
+          setLastCloudBackupTime(now.toISOString());
+          safeLocalStorage.setItem('oc_last_cloud_backup_time', now.toISOString());
+          setCloudBackupStatus('success');
 
-        // Silently insert an autocheck in logs
-        setSecurityLogs(prev => {
-          const timestampStr = now.toLocaleTimeString('pt-BR');
-          const autoLog = {
-            id: `sec_auto_${Date.now()}`,
-            timestamp: now.toISOString(),
-            eventType: 'BACKUP_AUTO',
-            ipAddress: 'Google Cloud Firestore',
-            details: `Sincronização automática em nuvem concluída com sucesso às ${timestampStr}.`,
-            severity: 'low'
-          };
-          const updated = [autoLog, ...prev].slice(0, 50);
-          safeLocalStorage.setItem('oc_security_logs', JSON.stringify(updated));
-          return updated;
-        });
-      } else {
-        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          // Silently insert an autocheck in logs
+          setSecurityLogs(prev => {
+            const timestampStr = now.toLocaleTimeString('pt-BR');
+            const autoLog = {
+              id: `sec_auto_${Date.now()}`,
+              timestamp: now.toISOString(),
+              eventType: 'BACKUP_AUTO',
+              ipAddress: 'Google Cloud Firestore',
+              details: `Sincronização automática em nuvem concluída com sucesso às ${timestampStr}.`,
+              severity: 'low'
+            };
+            const updated = [autoLog, ...prev].slice(0, 50);
+            safeLocalStorage.setItem('oc_security_logs', JSON.stringify(updated));
+            return updated;
+          });
+        } else {
+          if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            setCloudBackupStatus('offline');
+          } else {
+            setCloudBackupStatus('error');
+          }
+        }
+      } catch (err: any) {
+        const isQuota = err?.code === 'resource-exhausted' || 
+                        err?.message?.toLowerCase().includes('quota') || 
+                        err?.message?.toLowerCase().includes('exhausted') ||
+                        err?.message?.toLowerCase().includes('limit exceeded');
+        if (isQuota) {
+          console.error('Cota de escrita do Firestore excedida durante sincronização automática:', err);
+          setCloudBackupStatus('quota_exceeded');
+          addSecurityLog('SINC_NUVEM_COTA', 'Limite de escrita automática do Firestore esgotado.', 'medium');
+        } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
           setCloudBackupStatus('offline');
         } else {
           setCloudBackupStatus('error');
@@ -2502,7 +2640,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       wipeAllData, loadDemoData,
       login, logout, updatePassword, recoverPassword,
       setActiveClassId, setActiveSubjectId,
-      addCourse, addClass, updateClass, deleteClass, addSubject, addUser, updateUser, deleteUser, unifyDuplicateStudents, updateGrade, updateConceptRanges,
+      addCourse, addClass, updateClass, deleteClass, addSubject, addUser, updateUser, deleteUser, unifyDuplicateStudents, unifyDuplicateSubjects, updateGrade, updateConceptRanges,
       saveAttendanceSession, addAttendanceSession,
       directAbsences, updateStudentAbsences,
       toggleJournalStatus, sendMessage, addNotification, clearNotifications,

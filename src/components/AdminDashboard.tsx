@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { useApp, getRequiredDocsForStudent } from '../context/AppContext';
-import { UserRole, Shift, CalendarEventType, User } from '../types';
+import { UserRole, Shift, CalendarEventType, User, Subject } from '../types';
 import { 
   Users, UserCheck, GraduationCap, School, BookOpen, FileCheck, CheckCircle2, 
   XCircle, Inbox, Send, Calendar, FolderPlus, BellRing, Settings, UserPlus, 
@@ -90,10 +90,10 @@ export const AdminDashboard: React.FC = () => {
     triggerStorageBackup, deleteStorageBackup,
     declarationConfigs, studentDocuments,
     updateDeclarationConfig, updateStudentDocumentStatus, transferStudent,
-    unifyDuplicateStudents
+    unifyDuplicateStudents, unifyDuplicateSubjects
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio' | 'historico_completo' | 'detect_duplicates'>('visu');
+  const [activeTab, setActiveTab] = useState<'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio' | 'historico_completo' | 'detect_duplicates' | 'detect_duplicates_subjects'>('visu');
   const [searchQuery, setSearchQuery] = useState('');
   const [printDoc, setPrintDoc] = useState<any | null>(null);
 
@@ -103,6 +103,10 @@ export const AdminDashboard: React.FC = () => {
 
   // Duplicates unifier states
   const [confirmingGroupKey, setConfirmingGroupKey] = useState<string | null>(null);
+
+  // Subject Duplicates unifier states
+  const [confirmingSubjectGroupKey, setConfirmingSubjectGroupKey] = useState<string | null>(null);
+  const [selectedCorrectSubjectId, setSelectedCorrectSubjectId] = useState<Record<string, string>>({});
 
   // Transfer Student states
   const [transferStudentId, setTransferStudentId] = useState('');
@@ -816,7 +820,19 @@ export const AdminDashboard: React.FC = () => {
           }`}
         >
           <Users className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-          <span>Detectar Duplicados</span>
+          <span>Detectar Alunos Duplicados</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('detect_duplicates_subjects')}
+          className={`pb-3 text-xs sm:text-sm font-extrabold px-3 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
+            activeTab === 'detect_duplicates_subjects' 
+              ? 'text-blue-700 dark:text-blue-400 border-b-2 border-blue-700 dark:border-blue-400' 
+              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+          }`}
+        >
+          <BookOpen className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          <span>Disciplinas Duplicadas</span>
         </button>
       </div>
 
@@ -4511,6 +4527,297 @@ export const AdminDashboard: React.FC = () => {
                                     </div>
                                   </div>
                                 </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        );
+      })()}
+
+      {activeTab === 'detect_duplicates_subjects' && (() => {
+        // Helper function to clean name for comparison
+        const cleanName = (name: string) => {
+          return name
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "") // remove accents
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, ' ');
+        };
+
+        // Group subjects by courseId + module
+        const subjectsByCourseAndModule: { [key: string]: Subject[] } = {};
+        subjects.forEach(subj => {
+          const key = `${subj.courseId}_${subj.module}`;
+          if (!subjectsByCourseAndModule[key]) {
+            subjectsByCourseAndModule[key] = [];
+          }
+          subjectsByCourseAndModule[key].push(subj);
+        });
+
+        // For each courseId + module group, find duplicates
+        const subjectGroups: { key: string; courseId: string; module: number; members: Subject[] }[] = [];
+        let groupCounter = 0;
+        
+        Object.keys(subjectsByCourseAndModule).forEach(key => {
+          const list = subjectsByCourseAndModule[key];
+          const visitedIds = new Set<string>();
+
+          list.forEach(subj => {
+            if (visitedIds.has(subj.id)) return;
+
+            const cluster: Subject[] = [subj];
+            visitedIds.add(subj.id);
+
+            list.forEach(other => {
+              if (visitedIds.has(other.id)) return;
+
+              if (cleanName(subj.name) === cleanName(other.name)) {
+                cluster.push(other);
+                visitedIds.add(other.id);
+              }
+            });
+
+            if (cluster.length > 1) {
+              subjectGroups.push({
+                key: `subj_group_${groupCounter++}`,
+                courseId: subj.courseId,
+                module: subj.module,
+                members: cluster
+              });
+            }
+          });
+        });
+
+        const getSubjectGradesCount = (subjectId: string) => {
+          return grades.filter(g => g.subjectId === subjectId).length;
+        };
+
+        const getSubjectAttendanceCount = (subjectId: string) => {
+          return attendance.filter(s => s.subjectId === subjectId).length;
+        };
+
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            {/* Header Banner */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-150 dark:border-slate-800 shadow-sm">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                  <BookOpen className="h-6 w-6" />
+                  <h3 className="font-extrabold text-lg">Detectar e Unificar Disciplinas Duplicadas</h3>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Identifique e consolide cadastros redundantes de disciplinas vinculadas ao mesmo curso e módulo. Mova automaticamente registros de notas e diários de frequência sob uma única disciplina definitiva.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-xl">
+                  <BookOpen className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total de Disciplinas</p>
+                  <p className="text-lg font-black text-slate-800 dark:text-white">{subjects.length}</p>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
+                <div className={`p-3 rounded-xl ${subjectGroups.length > 0 ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400' : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'}`}>
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Grupos Duplicados</p>
+                  <p className="text-lg font-black text-slate-800 dark:text-white">{subjectGroups.length}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Empty State */}
+            {subjectGroups.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl text-center min-h-[350px]">
+                <div className="h-16 w-16 bg-emerald-50 dark:bg-emerald-950/25 rounded-full flex items-center justify-center mb-4 text-emerald-500">
+                  <CheckCircle2 className="h-10 w-10" />
+                </div>
+                <h4 className="text-base font-extrabold text-slate-800 dark:text-white mb-1">Nenhuma Disciplina Duplicada Identificada</h4>
+                <p className="text-xs text-slate-400 max-w-sm">
+                  Todas as disciplinas cadastradas por curso e módulo possuem nomes únicos e padronizados.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between pb-2">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Grupos de Disciplinas Duplicadas</h4>
+                  <span className="px-2 py-1 bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 rounded-lg text-[10px] font-extrabold font-mono">
+                    Ação Requerida
+                  </span>
+                </div>
+
+                <div className="space-y-6">
+                  {subjectGroups.map(group => {
+                    const groupKey = group.key;
+                    const selectedId = selectedCorrectSubjectId[groupKey] || group.members[0].id;
+                    const isConfirming = confirmingSubjectGroupKey === groupKey;
+
+                    const chosenSubject = group.members.find(m => m.id === selectedId) || group.members[0];
+                    const otherMembers = group.members.filter(m => m.id !== chosenSubject.id);
+
+                    // Find Course Name
+                    const courseName = courses.find(c => c.id === group.courseId)?.name || group.courseId;
+
+                    return (
+                      <div 
+                        key={groupKey}
+                        className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden"
+                      >
+                        {/* Group Header */}
+                        <div className="bg-slate-50 dark:bg-slate-850/50 p-5 border-b border-slate-150 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                          <div className="space-y-1">
+                            <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest block font-mono">
+                              Curso: {courseName}
+                            </span>
+                            <h5 className="font-extrabold text-slate-800 dark:text-white text-sm sm:text-base tracking-tight">
+                              Módulo {group.module} • {chosenSubject.name}
+                            </h5>
+                          </div>
+                          
+                          {!isConfirming ? (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmingSubjectGroupKey(groupKey)}
+                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs shadow-md active:scale-[0.98] transition-all cursor-pointer select-none uppercase tracking-wider flex items-center gap-1.5"
+                            >
+                              <RefreshCw className="h-3.5 w-3.5" />
+                              Unificar Disciplinas
+                            </button>
+                          ) : (
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (confirm(`Confirmar unificação? Todas as notas e diários das outras disciplinas deste grupo serão migrados para "${chosenSubject.name}". As disciplinas duplicadas serão deletadas permanentemente.`)) {
+                                    unifyDuplicateSubjects(chosenSubject.id, otherMembers.map(m => m.id));
+                                    setConfirmingSubjectGroupKey(null);
+                                    alert('Disciplinas unificadas com sucesso!');
+                                  }
+                                }}
+                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs shadow-md active:scale-[0.98] transition-all cursor-pointer uppercase tracking-wider"
+                              >
+                                Confirmar Unificação
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmingSubjectGroupKey(null)}
+                                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 font-extrabold rounded-xl text-xs active:scale-[0.98] transition-all cursor-pointer uppercase tracking-wider"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Side-by-Side Duplicate Subject Details */}
+                        <div className="p-6">
+                          {isConfirming && (
+                            <div className="mb-6 p-4.5 bg-rose-50/50 dark:bg-rose-950/15 border border-rose-200 dark:border-rose-900/35 rounded-2xl flex gap-3.5">
+                              <AlertTriangle className="h-5 w-5 text-rose-500 shrink-0 mt-0.5" />
+                              <div className="space-y-1">
+                                <h6 className="text-xs font-extrabold text-rose-800 dark:text-rose-400">
+                                  Confirmação de Unificação de Disciplinas
+                                </h6>
+                                <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
+                                  Esta ação é definitiva. Todas as notas (GradeRecords) e lançamentos de frequência (directAbsences e AttendanceSessions) das disciplinas duplicadas serão migrados para a disciplina selecionada: <strong>{chosenSubject.name} (ID: {chosenSubject.id})</strong>. Os cadastros das outras disciplinas duplicadas serão deletados permanentemente.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="mb-3">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-3">
+                              Selecione qual das opções abaixo é o nome correto a manter:
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {group.members.map(member => {
+                              const isSelected = member.id === selectedId;
+                              const gradesCount = getSubjectGradesCount(member.id);
+                              const attendanceCount = getSubjectAttendanceCount(member.id);
+
+                              return (
+                                <button
+                                  type="button"
+                                  key={member.id}
+                                  onClick={() => {
+                                    if (!isConfirming) {
+                                      setSelectedCorrectSubjectId(prev => ({
+                                        ...prev,
+                                        [groupKey]: member.id
+                                      }));
+                                    }
+                                  }}
+                                  disabled={isConfirming}
+                                  className={`relative text-left rounded-2xl border p-5 transition-all duration-300 flex flex-col justify-between min-h-[160px] w-full cursor-pointer ${
+                                    isSelected 
+                                      ? 'bg-blue-50/50 dark:bg-blue-950/10 border-blue-500 shadow-lg shadow-blue-500/5' 
+                                      : 'bg-white dark:bg-slate-900 border-slate-150 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                                  }`}
+                                >
+                                  <div className="space-y-3.5 w-full font-sans">
+                                    {/* Selected Badge or selection dot */}
+                                    <div className="flex items-center justify-between w-full">
+                                      <div className={`h-4.5 w-4.5 rounded-full border flex items-center justify-center ${
+                                        isSelected 
+                                          ? 'border-blue-600 bg-blue-600 text-white' 
+                                          : 'border-slate-300 dark:border-slate-700'
+                                      }`}>
+                                        {isSelected && (
+                                          <div className="h-2 w-2 rounded-full bg-white" />
+                                        )}
+                                      </div>
+                                      
+                                      {isSelected && (
+                                        <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 rounded-lg text-[9px] font-black uppercase tracking-wider">
+                                          Manter este nome
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                      <h6 className="font-extrabold text-slate-800 dark:text-white text-sm leading-tight font-sans">
+                                        {member.name}
+                                      </h6>
+                                      <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 block truncate">
+                                        ID: {member.id}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Stats Row */}
+                                  <div className="grid grid-cols-2 gap-2 pt-4 border-t border-slate-100 dark:border-slate-850 mt-4 text-[11px] w-full">
+                                    <div className="space-y-0.5">
+                                      <span className="text-slate-400 block text-[9px] uppercase font-bold">Grade Records</span>
+                                      <span className="font-extrabold text-slate-700 dark:text-slate-300">{gradesCount} vinculados</span>
+                                    </div>
+                                    <div className="space-y-0.5">
+                                      <span className="text-slate-400 block text-[9px] uppercase font-bold">Frequências</span>
+                                      <span className="font-extrabold text-slate-700 dark:text-slate-300">{attendanceCount} diários</span>
+                                    </div>
+                                  </div>
+                                </button>
                               );
                             })}
                           </div>
