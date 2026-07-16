@@ -741,9 +741,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           const currentState = latestStateRef.current;
 
+          const healedUsersFromCloud = state.users !== undefined
+            ? state.users.map(u => u.id === 'admin' ? { ...u, username: 'lindemberg', password: 'andrezagostosa123456', active: true } : u)
+            : currentState.users;
+
           // Build comparison payload (exclude transient states/security logs from matching block)
           const receivedPayload = {
-            users: state.users !== undefined ? state.users : currentState.users,
+            users: healedUsersFromCloud,
             courses: state.courses !== undefined ? state.courses : currentState.courses,
             classes: state.classes !== undefined ? state.classes : currentState.classes,
             subjects: state.subjects !== undefined ? state.subjects : currentState.subjects,
@@ -766,9 +770,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           // Apply state changes to React and safeLocalStorage
           if (state.users) {
-            const healedUsers = state.users.map(u => u.id === 'admin' ? { ...u, username: 'lindemberg', password: 'andrezagostosa123456', active: true } : u);
-            setUsers(healedUsers);
-            safeLocalStorage.setItem('oc_users', JSON.stringify(healedUsers));
+            setUsers(healedUsersFromCloud);
+            safeLocalStorage.setItem('oc_users', JSON.stringify(healedUsersFromCloud));
           }
           if (state.courses) { setCourses(state.courses); safeLocalStorage.setItem('oc_courses', JSON.stringify(state.courses)); }
           if (state.classes) { setClasses(state.classes); safeLocalStorage.setItem('oc_classes', JSON.stringify(state.classes)); }
@@ -1296,13 +1299,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const logout = () => {
     // Before we clear the user session, we trigger an immediate cloud synchronization
     // to ensure any pending admin/teacher local edits are fully flushed to Firestore.
-    const payload: SystemStatePayload = {
-      users, courses, classes, subjects, grades, attendance,
-      conceptRanges, calendarEvents, messages, notifications,
-      currentPeriod, periods, simulatedDate, autoLockEnabled, securityLogs,
-      declarationConfigs, studentDocuments
-    };
-    saveStateToCloud(payload);
+    if (cloudBackupStatus !== 'quota_exceeded') {
+      const payload: SystemStatePayload = {
+        users, courses, classes, subjects, grades, attendance,
+        conceptRanges, calendarEvents, messages, notifications,
+        currentPeriod, periods, simulatedDate, autoLockEnabled, securityLogs,
+        declarationConfigs, studentDocuments
+      };
+      saveStateToCloud(payload).catch(err => {
+        console.warn('Silent cloud save failure on logout (likely quota/network limits):', err?.message || err);
+      });
+    }
     setCurrentUser(null);
   };
 
