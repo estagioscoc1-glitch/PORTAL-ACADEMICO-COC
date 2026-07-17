@@ -83,7 +83,7 @@ export const AdminDashboard: React.FC = () => {
     triggerLocalBackup, triggerCloudBackup, restoreFromBackup, restoreFromCloud,
     failedAttemptsMap, resetFailedAttempts,
     currentPeriod, periods, setCurrentPeriod, addPeriod,
-    wipeAllData, loadDemoData,
+    wipeAllData, loadDemoData, clearAllStudentsAndFixEnfEad,
     autoLockEnabled, setAutoLockEnabled, simulatedDate, setSimulatedDate, updateCalendarEventDate,
     activeClassId, activeSubjectId, setActiveClassId, setActiveSubjectId,
     backupSchedule, updateBackupSchedule,
@@ -3106,6 +3106,33 @@ export const AdminDashboard: React.FC = () => {
                   className="w-full py-2.5 bg-slate-900 hover:bg-black dark:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Download className="h-4 w-4" /> Exportar Backup (JSON)
+                </button>
+              </div>
+
+              {/* Box 1.5: Academic Maintenance & Cleanup */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-4">
+                <div className="flex items-center gap-2 text-slate-800 dark:text-white select-none">
+                  <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                  <h4 className="font-bold text-sm">Manutenção e Limpeza Acadêmica</h4>
+                </div>
+                <p className="text-xs text-slate-400 dark:text-slate-500 leading-relaxed">
+                  Remova com segurança todos os alunos e seus registros do portal acadêmico e reconfigure automaticamente a grade curricular oficial do curso de <strong>Enfermagem EAD</strong> com os módulos e disciplinas corretos.
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (window.confirm('Atenção: Tem certeza de que deseja remover TODOS os alunos do sistema e reconfigurar as disciplinas de Enfermagem EAD para o padrão oficial? Esta ação limpará notas e frequências associadas.')) {
+                      try {
+                        await clearAllStudentsAndFixEnfEad();
+                        alert('Sucesso: Alunos limpos e grade de Enfermagem EAD reconfigurada com sucesso!');
+                      } catch (err: any) {
+                        alert('Erro ao realizar a manutenção: ' + err.message);
+                      }
+                    }
+                  }}
+                  className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="h-4 w-4" /> Limpar Alunos e Corrigir Enfermagem EAD
                 </button>
               </div>
 

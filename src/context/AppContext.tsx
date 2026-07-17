@@ -107,6 +107,7 @@ interface AppContextType {
   // Admin DB controls
   wipeAllData: () => void;
   loadDemoData: () => void;
+  clearAllStudentsAndFixEnfEad: () => Promise<void>;
   
   // Auth
   login: (username: string, cpfOrEnrollment: string, role: UserRole) => Promise<boolean>;
@@ -548,8 +549,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [users, setUsers] = useState<User[]>(() => {
     const val = safeJsonParse(safeLocalStorage.getItem('oc_users'), initialUsers);
     const baseList = (val && Array.isArray(val) && val.length > 0) ? val : initialUsers;
-    // Keep username stable but do not force any hardcoded password
-    return baseList.map(u => u.id === 'admin' ? { ...u, username: 'lindemberg' } : u);
+    return baseList;
   });
 
   const [courses, setCourses] = useState<Course[]>(() => {
@@ -625,6 +625,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [cloudBackupStatus, setCloudBackupStatus] = useState<'idle' | 'syncing' | 'success' | 'error' | 'offline' | 'quota_exceeded'>('idle');
   const [lastCloudBackupTime, setLastCloudBackupTime] = useState<string | null>(() => {
     return safeLocalStorage.getItem('oc_last_cloud_backup_time') || new Date().toISOString();
+  });
+  const [lastLocalWriteTime, setLastLocalWriteTime] = useState<string | null>(() => {
+    return safeLocalStorage.getItem('oc_last_local_write_time');
   });
 
   const [failedAttemptsMap, setFailedAttemptsMap] = useState<Record<string, { count: number; lockoutUntil: number | null }>>({});
@@ -711,6 +714,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [users, courses, classes, subjects, grades, attendance, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships, adminPasswordResetDone]);
 
   const lastReceivedPayloadRef = React.useRef<string>('');
+  const lastLocalWriteTimeRef = React.useRef<string | null>(lastLocalWriteTime);
+
+  useEffect(() => {
+    lastLocalWriteTimeRef.current = lastLocalWriteTime;
+  }, [lastLocalWriteTime]);
 
   // Initial synchronization & real-time updates with Cloud Firestore
   useEffect(() => {
@@ -733,7 +741,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     unsubscribe = onSnapshot(stateDocRef, async (docSnap) => {
       try {
         if (docSnap.exists()) {
+          // Bypassing local write echoes to avoid recursive overwrites and infinite render cycles
+          if (docSnap.metadata.hasPendingWrites) {
+            return;
+          }
+
           const state = docSnap.data() as SystemStatePayload;
+
+          // Conflict Resolution: If we have a more recent local modification, do not let older cloud data overwrite it.
+          if (lastLocalWriteTimeRef.current) {
+            const localTime = new Date(lastLocalWriteTimeRef.current).getTime();
+            const cloudTime = state.lastBackupTime ? new Date(state.lastBackupTime).getTime() : 0;
+            if (cloudTime < localTime) {
+              console.log('[onSnapshot] Conflito detectado: O estado local é mais recente do que o recebido da nuvem. Mantendo dados locais.');
+              return;
+            }
+          }
 
           // Integrity validation: protect diários against corrupted or completely empty cloud states
           const isStateValid = state && 
@@ -749,9 +772,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           const currentState = latestStateRef.current;
 
-          const healedUsersFromCloud = state.users !== undefined
-            ? state.users.map(u => u.id === 'admin' ? { ...u, username: 'lindemberg', active: true } : u)
-            : currentState.users;
+          const healedUsersFromCloud = state.users !== undefined ? state.users : currentState.users;
 
           // Build comparison payload (exclude transient states/security logs from matching block)
           const receivedPayload = {
@@ -1088,6 +1109,80 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (activeSubjectId) safeLocalStorage.setItem('oc_active_subject_id', activeSubjectId);
     else safeLocalStorage.removeItem('oc_active_subject_id');
   }, [activeSubjectId]);
+
+  // One-time automatic cleanup and repair on start
+  useEffect(() => {
+    if (isLoading) return;
+
+    const runAutoCleanup = async () => {
+      const alreadyDone = safeLocalStorage.getItem('oc_auto_cleanup_done_1') === 'true';
+      if (alreadyDone) return;
+
+      console.log('[AutoCleanup] Running one-time automatic database maintenance to clear students and repair Enfermagem EAD curriculum...');
+      
+      // Mark as done immediately to prevent re-entrancy
+      safeLocalStorage.setItem('oc_auto_cleanup_done_1', 'true');
+
+      // 1. Clean student users
+      const cleanUsers = users.filter(u => u.role !== UserRole.STUDENT);
+      setUsers(cleanUsers);
+      safeLocalStorage.setItem('oc_users', JSON.stringify(cleanUsers));
+
+      // 2. Clear student grades
+      setGrades([]);
+      safeLocalStorage.setItem('oc_grades', JSON.stringify([]));
+
+      // 3. Clear student attendance
+      setAttendance([]);
+      safeLocalStorage.setItem('oc_attendance', JSON.stringify([]));
+
+      // 4. Clear student documents and internships
+      setStudentDocuments([]);
+      safeLocalStorage.setItem('oc_student_documents', JSON.stringify([]));
+
+      setInternships([]);
+      safeLocalStorage.setItem('oc_internships', JSON.stringify([]));
+
+      // 5. Fix Enfermagem EAD subjects
+      const otherSubjects = subjects.filter(s => s.courseId !== 'ENF_EAD');
+      const pristineEnfEadSubjects = initialSubjects.filter(s => s.courseId === 'ENF_EAD');
+      const updatedSubjects = [...otherSubjects, ...pristineEnfEadSubjects];
+      
+      setSubjects(updatedSubjects);
+      safeLocalStorage.setItem('oc_subjects', JSON.stringify(updatedSubjects));
+
+      addSecurityLog('ALUNOS_LIMPOS_EAD_CORRIGIDO_AUTO', 'Manutenção Automática: Todos os alunos foram excluídos e a grade de Enfermagem EAD foi reconfigurada.', 'high');
+
+      if (db) {
+        const payload: SystemStatePayload = {
+          users: cleanUsers,
+          courses,
+          classes,
+          subjects: updatedSubjects,
+          grades: [],
+          attendance: [],
+          conceptRanges,
+          calendarEvents,
+          messages,
+          notifications,
+          currentPeriod,
+          periods,
+          simulatedDate,
+          autoLockEnabled,
+          securityLogs,
+          declarationConfigs,
+          studentDocuments: [],
+          internships: [],
+          adminPasswordResetDone
+        };
+        await saveStateToCloud(payload);
+      }
+    };
+
+    runAutoCleanup().catch(err => {
+      console.error('[AutoCleanup] Maintenance failed:', err);
+    });
+  }, [isLoading]);
 
   // Recalculate grades whenever attendance or concept ranges change
   useEffect(() => {
@@ -2096,6 +2191,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveSubjectId('enf_m1_anatomia');
 
     addSecurityLog('BANCO_LIMPO', 'Exclusão completa de alunos, professores, diários, matrículas e lançamentos efetuada com sucesso.', 'high');
+  };
+
+  const clearAllStudentsAndFixEnfEad = async () => {
+    // 1. Clean only students
+    const cleanUsers = users.filter(u => u.role !== UserRole.STUDENT);
+    setUsers(cleanUsers);
+    safeLocalStorage.setItem('oc_users', JSON.stringify(cleanUsers));
+
+    // 2. Clear student grades
+    setGrades([]);
+    safeLocalStorage.setItem('oc_grades', JSON.stringify([]));
+
+    // 3. Clear student attendance
+    setAttendance([]);
+    safeLocalStorage.setItem('oc_attendance', JSON.stringify([]));
+
+    // 4. Clear student documents and internships
+    setStudentDocuments([]);
+    safeLocalStorage.setItem('oc_student_documents', JSON.stringify([]));
+
+    setInternships([]);
+    safeLocalStorage.setItem('oc_internships', JSON.stringify([]));
+
+    // 5. Fix Enfermagem EAD subjects: keep other course subjects, but completely replace ENF_EAD subjects with pristine ones
+    const otherSubjects = subjects.filter(s => s.courseId !== 'ENF_EAD');
+    const pristineEnfEadSubjects = initialSubjects.filter(s => s.courseId === 'ENF_EAD');
+    const updatedSubjects = [...otherSubjects, ...pristineEnfEadSubjects];
+    
+    setSubjects(updatedSubjects);
+    safeLocalStorage.setItem('oc_subjects', JSON.stringify(updatedSubjects));
+
+    addSecurityLog('ALUNOS_LIMPOS_EAD_CORRIGIDO', 'Todos os alunos foram excluídos e a grade de Enfermagem EAD foi reconfigurada com sucesso.', 'high');
+
+    // Sync directly to the cloud to ensure Firestore is updated immediately
+    if (db) {
+      const payload: SystemStatePayload = {
+        users: cleanUsers,
+        courses,
+        classes,
+        subjects: updatedSubjects,
+        grades: [],
+        attendance: [],
+        conceptRanges,
+        calendarEvents,
+        messages,
+        notifications,
+        currentPeriod,
+        periods,
+        simulatedDate,
+        autoLockEnabled,
+        securityLogs,
+        declarationConfigs,
+        studentDocuments: [],
+        internships: [],
+        adminPasswordResetDone
+      };
+      await saveStateToCloud(payload);
+    }
   };
 
   const loadDemoData = () => {
@@ -3120,6 +3273,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
+    // Update local modification time because a change was detected
+    const nowStr = new Date().toISOString();
+    setLastLocalWriteTime(nowStr);
+    safeLocalStorage.setItem('oc_last_local_write_time', nowStr);
+
     const delayDebounceFn = setTimeout(async () => {
       const payload: SystemStatePayload = {
         ...currentPayload,
@@ -3192,7 +3350,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateCalendarEventDate,
       isClassS1Locked, isClassS2Locked, isClassDefinitiveLocked,
       currentPeriod, periods, setCurrentPeriod, addPeriod,
-      wipeAllData, loadDemoData,
+      wipeAllData, loadDemoData, clearAllStudentsAndFixEnfEad,
       login, logout, updatePassword, recoverPassword,
       setActiveClassId, setActiveSubjectId,
       addCourse, addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, updateConceptRanges,
