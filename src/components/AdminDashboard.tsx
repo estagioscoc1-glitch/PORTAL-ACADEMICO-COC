@@ -2075,7 +2075,7 @@ export const AdminDashboard: React.FC = () => {
                           <p className="text-[10px] text-slate-400 truncate">
                             Usuário: <span className="font-mono font-bold text-slate-600 dark:text-slate-300">{u.username}</span>
                             {u.enrollment && <> • Matrícula: <span className="font-mono font-bold text-slate-600 dark:text-slate-300">{u.enrollment}</span></>}
-                            {u.password && <> • Senha: <span className="font-mono font-bold text-slate-600 dark:text-slate-300">{u.password}</span></>}
+                            {u.password && <> • Senha: <span className="font-mono font-bold text-slate-600 dark:text-slate-300">••••••••</span></>}
                           </p>
                           <p className="text-[9px] text-slate-400 truncate">{u.email}</p>
                         </div>
@@ -2182,7 +2182,7 @@ export const AdminDashboard: React.FC = () => {
                               <span>•</span>
                               <span>Matrícula: <strong className="font-mono">{teacher.enrollment}</strong></span>
                               <span>•</span>
-                              <span>Senha: <strong className="text-blue-600 dark:text-blue-400 font-mono">{teacher.password || 'Sem senha'}</strong></span>
+                              <span>Senha: <strong className="text-blue-600 dark:text-blue-400 font-mono">{teacher.password ? '••••••••' : 'Sem senha'}</strong></span>
                             </div>
                           </div>
                         </button>

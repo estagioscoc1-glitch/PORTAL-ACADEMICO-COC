@@ -95,6 +95,7 @@ export interface SystemStatePayload {
   internships?: any[];
   lastBackupTime?: string;
   version?: string;
+  adminPasswordResetDone?: boolean;
 }
 
 /**

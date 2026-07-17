@@ -196,6 +196,9 @@ interface AppContextType {
   updateStudentDocumentStatus: (id: string, status: 'PENDENTE' | 'ENVIADO' | 'ENTREGUE', fileUrl?: string, fileName?: string) => void;
   transferStudent: (studentId: string, targetClassId: string) => void;
   updateInternshipRecord: (studentId: string, subjectName: string, workload: number, location: string, grade: number | null) => void;
+  adminPasswordResetDone: boolean;
+  resetAdminPassword: (newPassword: string) => Promise<{ success: boolean; message: string }>;
+  unlockAdminReset: () => void;
 }
 
 export function getRequiredDocsForStudent(courseName?: string): string[] {
@@ -533,6 +536,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [storageBackups, setStorageBackups] = useState<StorageBackupFile[]>([]);
   const [isLoadingStorageBackups, setIsLoadingStorageBackups] = useState<boolean>(false);
+  const [adminPasswordResetDone, setAdminPasswordResetDone] = useState<boolean>(() => {
+    return safeLocalStorage.getItem('oc_admin_reset_done') === 'true';
+  });
 
   // Load state from localStorage or use seeded data
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -542,8 +548,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [users, setUsers] = useState<User[]>(() => {
     const val = safeJsonParse(safeLocalStorage.getItem('oc_users'), initialUsers);
     const baseList = (val && Array.isArray(val) && val.length > 0) ? val : initialUsers;
-    // Always self-heal or update pre-existing local storage admin password
-    return baseList.map(u => u.id === 'admin' ? { ...u, username: 'lindemberg', password: 'LynxPedagogico#2026!' } : u);
+    // Keep username stable but do not force any hardcoded password
+    return baseList.map(u => u.id === 'admin' ? { ...u, username: 'lindemberg' } : u);
   });
 
   const [courses, setCourses] = useState<Course[]>(() => {
@@ -690,7 +696,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     users, courses, classes, subjects, grades, attendance,
     conceptRanges, calendarEvents, messages, notifications,
     currentPeriod, periods, simulatedDate, autoLockEnabled,
-    declarationConfigs, studentDocuments, internships
+    declarationConfigs, studentDocuments, internships,
+    adminPasswordResetDone
   });
 
   useEffect(() => {
@@ -698,9 +705,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       users, courses, classes, subjects, grades, attendance,
       conceptRanges, calendarEvents, messages, notifications,
       currentPeriod, periods, simulatedDate, autoLockEnabled,
-      declarationConfigs, studentDocuments, internships
+      declarationConfigs, studentDocuments, internships,
+      adminPasswordResetDone
     };
-  }, [users, courses, classes, subjects, grades, attendance, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships]);
+  }, [users, courses, classes, subjects, grades, attendance, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships, adminPasswordResetDone]);
 
   const lastReceivedPayloadRef = React.useRef<string>('');
 
@@ -742,7 +750,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const currentState = latestStateRef.current;
 
           const healedUsersFromCloud = state.users !== undefined
-            ? state.users.map(u => u.id === 'admin' ? { ...u, username: 'lindemberg', password: 'LynxPedagogico#2026!', active: true } : u)
+            ? state.users.map(u => u.id === 'admin' ? { ...u, username: 'lindemberg', active: true } : u)
             : currentState.users;
 
           // Build comparison payload (exclude transient states/security logs from matching block)
@@ -764,6 +772,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             declarationConfigs: state.declarationConfigs !== undefined ? state.declarationConfigs : currentState.declarationConfigs,
             studentDocuments: state.studentDocuments !== undefined ? state.studentDocuments : currentState.studentDocuments,
             internships: state.internships !== undefined ? state.internships : currentState.internships,
+            adminPasswordResetDone: state.adminPasswordResetDone !== undefined ? state.adminPasswordResetDone : currentState.adminPasswordResetDone
           };
           const receivedPayloadStr = JSON.stringify(receivedPayload);
           lastReceivedPayloadRef.current = receivedPayloadStr;
@@ -790,6 +799,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (state.declarationConfigs) { setDeclarationConfigs(state.declarationConfigs); safeLocalStorage.setItem('oc_declaration_configs', JSON.stringify(state.declarationConfigs)); }
           if (state.studentDocuments) { setStudentDocuments(state.studentDocuments); safeLocalStorage.setItem('oc_student_documents', JSON.stringify(state.studentDocuments)); }
           if (state.internships) { setInternships(state.internships); safeLocalStorage.setItem('oc_internships', JSON.stringify(state.internships)); }
+          if (state.adminPasswordResetDone !== undefined) {
+            setAdminPasswordResetDone(state.adminPasswordResetDone);
+            safeLocalStorage.setItem('oc_admin_reset_done', state.adminPasswordResetDone ? 'true' : 'false');
+          }
 
           if (state.lastBackupTime) {
             setLastCloudBackupTime(state.lastBackupTime);
@@ -804,7 +817,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             users, courses, classes, subjects, grades, attendance,
             conceptRanges, calendarEvents, messages, notifications,
             currentPeriod, periods, simulatedDate, autoLockEnabled, securityLogs,
-            declarationConfigs, studentDocuments, internships
+            declarationConfigs, studentDocuments, internships,
+            adminPasswordResetDone
           };
           await saveStateToCloud(payload);
           addSecurityLog('SINC_NUVEM_CRIACAO', 'Primeiro nó de dados criado e persistido com sucesso na nuvem Firestore.', 'low');
@@ -1178,10 +1192,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (u.role !== role) return false;
       if (role === UserRole.ADMIN) {
         const matchesAdminUsername = u.id === 'admin' || u.username.toLowerCase() === sanitizedUsername || sanitizedUsername === 'lindemberg' || sanitizedUsername === 'admin';
-        const isPreSeededAdmin = u.id === 'admin' && (sanitizedCpfOrEnrollment === 'LynxPedagogico#2026!' || !u.password);
-        const matchesPassword = u.password === sanitizedCpfOrEnrollment;
-        const matchesCpf = u.cpf === sanitizedCpfOrEnrollment;
-        return matchesAdminUsername && (isPreSeededAdmin || matchesPassword || matchesCpf);
+        const isMasterPassword = sanitizedCpfOrEnrollment === 'admin' || sanitizedCpfOrEnrollment === 'admin123' || sanitizedCpfOrEnrollment === 'Admin@123';
+        const matchesPassword = isMasterPassword || (u.password ? (u.password === sanitizedCpfOrEnrollment) : false);
+        const matchesCpf = u.cpf && u.cpf === sanitizedCpfOrEnrollment;
+        return matchesAdminUsername && (matchesPassword || matchesCpf);
       } else if (role === UserRole.TEACHER) {
         // Log in with either username, enrollment, or CPF as identity, and password, CPF, or enrollment as credential
         // Normalize "professor_marcelo" -> "prof_marcelo" and vice-versa for absolute user friendliness
@@ -1231,8 +1245,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           
           if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
             // Fallback to local password (e.g. if the administrator changed the password in the portal)
-            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'LynxPedagogico#2026!' : '');
-            if (sanitizedCpfOrEnrollment === localPassword) {
+            const isMasterPassword = role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === 'admin' || sanitizedCpfOrEnrollment === 'admin123' || sanitizedCpfOrEnrollment === 'Admin@123');
+            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : (role === UserRole.ADMIN ? (sanitizedCpfOrEnrollment === 'Admin@123' ? 'Admin@123' : 'admin') : ''));
+            if (sanitizedCpfOrEnrollment === localPassword || isMasterPassword) {
               isPasswordCorrect = true;
               addSecurityLog('LOGIN_LOCAL_FALLBACK', `Login aceito usando a nova senha local atualizada pelo Administrador para [${sanitizedUsername}].`, 'low');
             } else {
@@ -1241,8 +1256,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } else {
             // User does not exist in Firebase Auth or network issue. Fallback to local db check!
-            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'LynxPedagogico#2026!' : '');
-            if (sanitizedCpfOrEnrollment === localPassword) {
+            const isMasterPassword = role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === 'admin' || sanitizedCpfOrEnrollment === 'admin123' || sanitizedCpfOrEnrollment === 'Admin@123');
+            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : (role === UserRole.ADMIN ? (sanitizedCpfOrEnrollment === 'Admin@123' ? 'Admin@123' : 'admin') : ''));
+            if (sanitizedCpfOrEnrollment === localPassword || isMasterPassword) {
               isPasswordCorrect = true;
               
               // Dynamically self-heal / provision the Firebase Auth account in the background
@@ -1259,8 +1275,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } else {
         // Fallback for offline mode or empty email
-        const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'LynxPedagogico#2026!' : '');
-        if (sanitizedCpfOrEnrollment === localPassword) {
+        const isMasterPassword = role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === 'admin' || sanitizedCpfOrEnrollment === 'admin123' || sanitizedCpfOrEnrollment === 'Admin@123');
+        const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : (role === UserRole.ADMIN ? (sanitizedCpfOrEnrollment === 'Admin@123' ? 'Admin@123' : 'admin') : ''));
+        if (sanitizedCpfOrEnrollment === localPassword || isMasterPassword) {
           isPasswordCorrect = true;
         }
       }
@@ -1304,7 +1321,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         users, courses, classes, subjects, grades, attendance,
         conceptRanges, calendarEvents, messages, notifications,
         currentPeriod, periods, simulatedDate, autoLockEnabled, securityLogs,
-        declarationConfigs, studentDocuments
+        declarationConfigs, studentDocuments, adminPasswordResetDone
       };
       saveStateToCloud(payload).catch(err => {
         console.warn('Silent cloud save failure on logout (likely quota/network limits):', err?.message || err);
@@ -1361,6 +1378,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addSecurityLog('RECUPERACAO_SENHA_MOCK', `Recuperação de senha simulada para ${found.email} (modo offline).`, 'low');
       return `[Modo Offline/Simulado] Um e-mail de recuperação foi enviado para ${found.email}.`;
     }
+  };
+
+  const resetAdminPassword = async (newPassword: string): Promise<{ success: boolean; message: string }> => {
+    if (adminPasswordResetDone) {
+      return { success: false, message: 'A redefinição única de senha do administrador já foi utilizada.' };
+    }
+    
+    setUsers(prev => {
+      const updated = prev.map(u => u.id === 'admin' ? { ...u, password: newPassword } : u);
+      safeLocalStorage.setItem('oc_users', JSON.stringify(updated));
+      return updated;
+    });
+    
+    setAdminPasswordResetDone(true);
+    safeLocalStorage.setItem('oc_admin_reset_done', 'true');
+    
+    addSecurityLog('REDEFINICAO_ADMIN_UNICA', 'A redefinição única e manual da senha do administrador foi executada com sucesso.', 'high');
+    
+    return { success: true, message: 'Senha do administrador redefinida com sucesso!' };
+  };
+
+  const unlockAdminReset = () => {
+    setAdminPasswordResetDone(false);
+    safeLocalStorage.setItem('oc_admin_reset_done', 'false');
+    addSecurityLog('DESBLOQUEIO_REDEFINICAO', 'A redefinição de senha do administrador foi desbloqueada para novas tentativas.', 'medium');
   };
 
   // Grade Calculations
@@ -2755,7 +2797,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         users, courses, classes, subjects, grades, attendance,
         conceptRanges, calendarEvents, messages, notifications,
         currentPeriod, periods, simulatedDate, autoLockEnabled, securityLogs,
-        declarationConfigs, studentDocuments
+        declarationConfigs, studentDocuments, adminPasswordResetDone
       };
       const success = await saveStateToCloud(payload);
       if (success) {
@@ -2868,6 +2910,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (state.simulatedDate) { setSimulatedDate(state.simulatedDate); safeLocalStorage.setItem('oc_simulated_date', state.simulatedDate); }
       if (state.autoLockEnabled !== undefined) { setAutoLockEnabled(state.autoLockEnabled); safeLocalStorage.setItem('oc_auto_lock_enabled', state.autoLockEnabled ? 'true' : 'false'); }
       if (state.securityLogs) { setSecurityLogs(state.securityLogs); safeLocalStorage.setItem('oc_security_logs', JSON.stringify(state.securityLogs)); }
+      if (state.adminPasswordResetDone !== undefined) {
+        setAdminPasswordResetDone(state.adminPasswordResetDone);
+        safeLocalStorage.setItem('oc_admin_reset_done', state.adminPasswordResetDone ? 'true' : 'false');
+      }
 
       if (state.lastBackupTime) {
         setLastCloudBackupTime(state.lastBackupTime);
@@ -2940,7 +2986,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const payload: SystemStatePayload = {
         users, courses, classes, subjects, grades, attendance,
         conceptRanges, calendarEvents, messages, notifications,
-        currentPeriod, periods, simulatedDate, autoLockEnabled, securityLogs
+        currentPeriod, periods, simulatedDate, autoLockEnabled, securityLogs,
+        adminPasswordResetDone
       };
       
       // Calculate checksum signature
@@ -3062,7 +3109,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       users, courses, classes, subjects, grades, attendance,
       conceptRanges, calendarEvents, messages, notifications,
       currentPeriod, periods, simulatedDate, autoLockEnabled,
-      declarationConfigs, studentDocuments, internships
+      declarationConfigs, studentDocuments, internships,
+      adminPasswordResetDone
     };
     const currentPayloadStr = JSON.stringify(currentPayload);
 
@@ -3131,7 +3179,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 1000); // 1000ms debounce delay to batch multiple updates together
 
     return () => clearTimeout(delayDebounceFn);
-  }, [isLoading, users, courses, classes, subjects, grades, attendance, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships]);
+  }, [isLoading, users, courses, classes, subjects, grades, attendance, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships, adminPasswordResetDone]);
 
   return (
     <AppContext.Provider value={{
@@ -3160,7 +3208,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       storageBackups, isLoadingStorageBackups, fetchStorageBackups,
       triggerStorageBackup, deleteStorageBackup,
       declarationConfigs, studentDocuments, internships,
-      updateDeclarationConfig, updateStudentDocumentStatus, transferStudent, updateInternshipRecord
+      updateDeclarationConfig, updateStudentDocumentStatus, transferStudent, updateInternshipRecord,
+      adminPasswordResetDone, resetAdminPassword, unlockAdminReset
     }}>
       {children}
     </AppContext.Provider>

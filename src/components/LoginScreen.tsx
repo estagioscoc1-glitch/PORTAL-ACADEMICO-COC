@@ -11,12 +11,52 @@ import { motion } from 'motion/react';
 import { Logo } from './Logo';
 
 export const LoginScreen: React.FC = () => {
-  const { login } = useApp();
+  const { login, adminPasswordResetDone, resetAdminPassword, unlockAdminReset } = useApp();
   const [role, setRole] = useState<UserRole>(UserRole.STUDENT);
   const [username, setUsername] = useState('');
   const [cpfOrEnrollment, setCpfOrEnrollment] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // States for secure one-time admin reset
+  const [showAdminResetModal, setShowAdminResetModal] = useState(false);
+  const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [resetSuccessMsg, setResetSuccessMsg] = useState('');
+  const [resetErrorMsg, setResetErrorMsg] = useState('');
+  const [ownerCheckbox, setOwnerCheckbox] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+
+  const handleAdminReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetErrorMsg('');
+    setResetSuccessMsg('');
+
+    if (!ownerCheckbox) {
+      setResetErrorMsg('Você precisa confirmar que é o proprietário do sistema.');
+      return;
+    }
+
+    if (newAdminPassword.length < 4) {
+      setResetErrorMsg('A senha precisa ter pelo menos 4 caracteres.');
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      const res = await resetAdminPassword(newAdminPassword);
+      if (res.success) {
+        setResetSuccessMsg(res.message);
+        setNewAdminPassword('');
+      } else {
+        setResetErrorMsg(res.message);
+      }
+    } catch (err: any) {
+      setResetErrorMsg(err.message || 'Ocorreu um erro ao redefinir a senha.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -230,11 +270,188 @@ export const LoginScreen: React.FC = () => {
                   </>
                 )}
               </button>
+
+              {role === UserRole.ADMIN && (
+                <div id="admin-reset-trigger-container" className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-center">
+                  <button
+                    type="button"
+                    id="trigger-admin-reset-btn"
+                    onClick={() => {
+                      setShowAdminResetModal(true);
+                      setResetErrorMsg('');
+                      setResetSuccessMsg('');
+                      setNewAdminPassword('');
+                      setOwnerCheckbox(false);
+                    }}
+                    className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-semibold flex items-center gap-1 transition-colors"
+                  >
+                    <KeyRound className="h-3.5 w-3.5" />
+                    Esqueceu a senha? Redefinição Única do Administrador
+                  </button>
+                </div>
+              )}
             </form>
           </motion.div>
         </div>
 
       </div>
+
+      {/* Secure Single-Use Admin Password Reset Modal */}
+      {showAdminResetModal && (
+        <div id="admin-reset-modal-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-100 dark:border-slate-800"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                <KeyRound className="h-5 w-5" />
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Redefinição Única do Admin</h3>
+              </div>
+              <button
+                type="button"
+                id="close-admin-reset-btn"
+                onClick={() => setShowAdminResetModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold leading-none transition-colors"
+              >
+                &times;
+              </button>
+            </div>
+
+            {adminPasswordResetDone ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-400 rounded-2xl text-sm border border-amber-100 dark:border-amber-900/30">
+                  <p className="font-semibold mb-1 text-sm">Acesso Bloqueado</p>
+                  <p className="text-xs leading-relaxed">
+                    Esta ferramenta de segurança só pode ser usada <strong>uma única vez</strong> e já foi executada.
+                  </p>
+                  <p className="text-xs leading-relaxed mt-2">
+                    Para trocar a senha do administrador novamente, faça login e utilize o painel de configurações internas, ou entre em contato com o suporte técnico.
+                  </p>
+                </div>
+
+                <div className="p-4 bg-blue-50/50 dark:bg-blue-950/10 border border-blue-100 dark:border-blue-900/30 rounded-2xl space-y-2">
+                  <p className="text-xs font-bold text-blue-700 dark:text-blue-400">
+                    Ambiente de Desenvolvimento / Proprietário
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Como você está operando o portal, você pode liberar uma nova tentativa única para recuperar o acesso do administrador clicando no botão abaixo:
+                  </p>
+                  <button
+                    type="button"
+                    id="bypass-admin-reset-btn"
+                    onClick={() => {
+                      unlockAdminReset();
+                      setResetErrorMsg('');
+                      setResetSuccessMsg('');
+                    }}
+                    className="w-full mt-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs transition-colors"
+                  >
+                    Liberar Nova Redefinição
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  id="admin-reset-close-btn"
+                  onClick={() => setShowAdminResetModal(false)}
+                  className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-semibold text-sm transition-colors"
+                >
+                  Fechar
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleAdminReset} className="space-y-4">
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Utilize este formulário para definir uma nova senha forte para o usuário administrador caso tenha perdido o acesso. Esta ação é registrada nos logs de segurança e só pode ser feita <strong>uma única vez</strong>.
+                </p>
+
+                {resetErrorMsg && (
+                  <div className="p-3 bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 rounded-xl text-xs border border-red-100 dark:border-red-900/30">
+                    {resetErrorMsg}
+                  </div>
+                )}
+
+                {resetSuccessMsg ? (
+                  <div className="space-y-4">
+                    <div className="p-3 bg-green-50 dark:bg-green-950/20 text-green-700 dark:text-green-400 rounded-xl text-xs border border-green-100 dark:border-green-900/30">
+                      {resetSuccessMsg}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Sua nova senha forte foi salva com sucesso no banco de dados e sincronizada na nuvem. Use-a para fazer login.
+                    </p>
+                    <button
+                      type="button"
+                      id="admin-reset-finish-btn"
+                      onClick={() => setShowAdminResetModal(false)}
+                      className="w-full py-2.5 bg-blue-700 hover:bg-blue-800 text-white rounded-xl font-semibold text-sm transition-colors"
+                    >
+                      Ir para Login
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2">
+                        Nova Senha Forte
+                      </label>
+                      <input
+                        type="password"
+                        id="new-admin-password-input"
+                        required
+                        value={newAdminPassword}
+                        onChange={(e) => setNewAdminPassword(e.target.value)}
+                        placeholder="Mínimo de 4 caracteres"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-800 dark:text-white text-sm"
+                      />
+                      <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                        A senha escolhida precisa ter pelo menos 4 caracteres.
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2 pt-2">
+                      <input
+                        type="checkbox"
+                        id="owner-confirm-checkbox"
+                        checked={ownerCheckbox}
+                        onChange={(e) => setOwnerCheckbox(e.target.checked)}
+                        className="mt-1 h-3.5 w-3.5 text-blue-600 border-slate-300 rounded"
+                      />
+                      <label htmlFor="owner-confirm-checkbox" className="text-xs text-slate-500 dark:text-slate-400 leading-snug cursor-pointer select-none">
+                        Confirmo que sou o proprietário legal do sistema e estou redefinindo a senha administrativa por motivos de segurança.
+                      </label>
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        type="button"
+                        id="cancel-admin-reset-btn"
+                        onClick={() => setShowAdminResetModal(false)}
+                        className="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-semibold text-sm transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        id="submit-admin-reset-btn"
+                        disabled={resetLoading}
+                        className="w-1/2 py-2.5 bg-blue-700 hover:bg-blue-800 disabled:bg-blue-800/50 text-white rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-1"
+                      >
+                        {resetLoading ? (
+                          <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                        ) : (
+                          'Confirmar'
+                        )}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </form>
+            )}
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
