@@ -543,7 +543,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const val = safeJsonParse(safeLocalStorage.getItem('oc_users'), initialUsers);
     const baseList = (val && Array.isArray(val) && val.length > 0) ? val : initialUsers;
     // Always self-heal or update pre-existing local storage admin password
-    return baseList.map(u => u.id === 'admin' ? { ...u, username: 'lindemberg', password: 'andrezagostosa123456' } : u);
+    return baseList.map(u => u.id === 'admin' ? { ...u, username: 'lindemberg', password: 'LynxPedagogico#2026!' } : u);
   });
 
   const [courses, setCourses] = useState<Course[]>(() => {
@@ -742,7 +742,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const currentState = latestStateRef.current;
 
           const healedUsersFromCloud = state.users !== undefined
-            ? state.users.map(u => u.id === 'admin' ? { ...u, username: 'lindemberg', password: 'andrezagostosa123456', active: true } : u)
+            ? state.users.map(u => u.id === 'admin' ? { ...u, username: 'lindemberg', password: 'LynxPedagogico#2026!', active: true } : u)
             : currentState.users;
 
           // Build comparison payload (exclude transient states/security logs from matching block)
@@ -1178,10 +1178,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (u.role !== role) return false;
       if (role === UserRole.ADMIN) {
         const matchesAdminUsername = u.id === 'admin' || u.username.toLowerCase() === sanitizedUsername || sanitizedUsername === 'lindemberg' || sanitizedUsername === 'admin';
-        const isPreSeededAdmin = u.id === 'admin' && (sanitizedCpfOrEnrollment === 'andrezagostosa123456' || sanitizedCpfOrEnrollment === 'lindemberg' || !u.password);
+        const isPreSeededAdmin = u.id === 'admin' && (sanitizedCpfOrEnrollment === 'LynxPedagogico#2026!' || !u.password);
         const matchesPassword = u.password === sanitizedCpfOrEnrollment;
         const matchesCpf = u.cpf === sanitizedCpfOrEnrollment;
-        return matchesAdminUsername && (isPreSeededAdmin || matchesPassword || matchesCpf || sanitizedCpfOrEnrollment === 'andrezagostosa123456' || sanitizedCpfOrEnrollment === 'lindemberg');
+        return matchesAdminUsername && (isPreSeededAdmin || matchesPassword || matchesCpf);
       } else if (role === UserRole.TEACHER) {
         // Log in with either username, enrollment, or CPF as identity, and password, CPF, or enrollment as credential
         // Normalize "professor_marcelo" -> "prof_marcelo" and vice-versa for absolute user friendliness
@@ -1231,8 +1231,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           
           if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
             // Fallback to local password (e.g. if the administrator changed the password in the portal)
-            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'andrezagostosa123456' : '');
-            if (sanitizedCpfOrEnrollment === localPassword || (role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === 'andrezagostosa123456' || sanitizedCpfOrEnrollment === 'lindemberg'))) {
+            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'LynxPedagogico#2026!' : '');
+            if (sanitizedCpfOrEnrollment === localPassword) {
               isPasswordCorrect = true;
               addSecurityLog('LOGIN_LOCAL_FALLBACK', `Login aceito usando a nova senha local atualizada pelo Administrador para [${sanitizedUsername}].`, 'low');
             } else {
@@ -1241,8 +1241,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } else {
             // User does not exist in Firebase Auth or network issue. Fallback to local db check!
-            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'andrezagostosa123456' : '');
-            if (sanitizedCpfOrEnrollment === localPassword || (role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === 'andrezagostosa123456' || sanitizedCpfOrEnrollment === 'lindemberg'))) {
+            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'LynxPedagogico#2026!' : '');
+            if (sanitizedCpfOrEnrollment === localPassword) {
               isPasswordCorrect = true;
               
               // Dynamically self-heal / provision the Firebase Auth account in the background
@@ -1259,8 +1259,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } else {
         // Fallback for offline mode or empty email
-        const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'andrezagostosa123456' : '');
-        if (sanitizedCpfOrEnrollment === localPassword || (role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === 'andrezagostosa123456' || sanitizedCpfOrEnrollment === 'lindemberg'))) {
+        const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '') || (role === UserRole.ADMIN ? 'LynxPedagogico#2026!' : '');
+        if (sanitizedCpfOrEnrollment === localPassword) {
           isPasswordCorrect = true;
         }
       }
@@ -1735,34 +1735,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    const mappedGroup: { [groupKey: string]: { subject: Subject; score: number }[] } = {};
-
-    subjects.forEach(subj => {
+    // 2. Pre-clean prefixes and find official match for each subject
+    const processedSubjects = subjects.map(subj => {
+      const originalName = subj.name;
+      const cleanName = /^\d+_+/.test(originalName) ? originalName.replace(/^\d+_+/, '').trim() : originalName;
       const official = courseIdToOfficial[subj.courseId];
-      if (!official) return;
+      let targetName = cleanName;
+      let bestScore = -1;
+      let isOfficialMatch = false;
 
-      const officialNames = official.modules[subj.module as 1 | 2 | 3] || [];
-      
-      let bestOfficialName: string | null = null;
-      let highestScore = -1;
-
-      officialNames.forEach(offName => {
-        if (isMatchForSync(subj.name, offName)) {
-          const score = calculateSimilarityForSync(subj.name, offName);
-          if (score > highestScore) {
-            highestScore = score;
-            bestOfficialName = offName;
+      if (official) {
+        const officialNames = official.modules[subj.module as 1 | 2 | 3] || [];
+        officialNames.forEach(offName => {
+          if (isMatchForSync(cleanName, offName)) {
+            const score = calculateSimilarityForSync(cleanName, offName);
+            if (score > bestScore) {
+              bestScore = score;
+              targetName = offName;
+              isOfficialMatch = true;
+            }
           }
-        }
-      });
-
-      if (bestOfficialName) {
-        const key = `${subj.courseId}_${subj.module}_${bestOfficialName}`;
-        if (!mappedGroup[key]) {
-          mappedGroup[key] = [];
-        }
-        mappedGroup[key].push({ subject: subj, score: highestScore });
+        });
       }
+
+      return {
+        ...subj,
+        originalName,
+        cleanName,
+        targetName,
+        score: isOfficialMatch ? bestScore : 1.0
+      };
+    });
+
+    // 3. Group by course, module, and targetName to detect duplicates
+    const groups: { [key: string]: typeof processedSubjects } = {};
+    processedSubjects.forEach(ps => {
+      const key = `${ps.courseId}_${ps.module}_${ps.targetName.trim().toLowerCase()}`;
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(ps);
     });
 
     // Let's prepare maps of changes
@@ -1772,33 +1784,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const renamedList: { original: string; official: string; id: string }[] = [];
     const unifiedList: { original: string; kept: string; keptId: string; deletedId: string }[] = [];
 
-    Object.keys(mappedGroup).forEach(groupKey => {
-      const entries = mappedGroup[groupKey];
-      const parts = groupKey.split('_');
-      const courseId = parts[0];
-      const moduleNum = parseInt(parts[1], 10);
-      const officialName = groupKey.substring(courseId.length + parts[1].length + 2);
-
+    // 4. Resolve renames and unifications
+    Object.keys(groups).forEach(key => {
+      const entries = groups[key];
       if (entries.length === 1) {
-        const entry = entries[0];
-        if (entry.subject.name !== officialName) {
-          renameMap[entry.subject.id] = officialName;
-          renamedList.push({ original: entry.subject.name, official: officialName, id: entry.subject.id });
+        const single = entries[0];
+        if (single.originalName !== single.targetName) {
+          renameMap[single.id] = single.targetName;
+          renamedList.push({ original: single.originalName, official: single.targetName, id: single.id });
         }
       } else if (entries.length > 1) {
-        // Sort descending by score
-        entries.sort((a, b) => b.score - a.score);
+        // Sort descending to choose the primary subject:
+        // - Prefer the one that doesn't need rename if possible (exact match to targetName)
+        // - Prefer the one with more data records to keep history safe
+        entries.sort((a, b) => {
+          const isExactA = a.originalName === a.targetName ? 1 : 0;
+          const isExactB = b.originalName === b.targetName ? 1 : 0;
+          if (isExactA !== isExactB) return isExactB - isExactA;
+
+          const dataA = grades.filter(g => g.subjectId === a.id).length + attendance.filter(s => s.subjectId === a.id).length;
+          const dataB = grades.filter(g => g.subjectId === b.id).length + attendance.filter(s => s.subjectId === b.id).length;
+          if (dataA !== dataB) return dataB - dataA;
+
+          return a.id.localeCompare(b.id);
+        });
+
         const primary = entries[0];
         const duplicates = entries.slice(1);
 
         duplicates.forEach(dup => {
-          mergeMap[dup.subject.id] = primary.subject.id;
-          unifiedList.push({ original: dup.subject.name, kept: primary.subject.name, keptId: primary.subject.id, deletedId: dup.subject.id });
+          mergeMap[dup.id] = primary.id;
+          unifiedList.push({ original: dup.originalName, kept: primary.targetName, keptId: primary.id, deletedId: dup.id });
         });
 
-        if (primary.subject.name !== officialName) {
-          renameMap[primary.subject.id] = officialName;
-          renamedList.push({ original: primary.subject.name, official: officialName, id: primary.subject.id });
+        if (primary.originalName !== primary.targetName) {
+          renameMap[primary.id] = primary.targetName;
+          renamedList.push({ original: primary.originalName, official: primary.targetName, id: primary.id });
         }
       }
     });
