@@ -700,7 +700,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     conceptRanges, calendarEvents, messages, notifications,
     currentPeriod, periods, simulatedDate, autoLockEnabled,
     declarationConfigs, studentDocuments, internships,
-    adminPasswordResetDone
+    adminPasswordResetDone, securityLogs
   });
 
   useEffect(() => {
@@ -709,9 +709,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       conceptRanges, calendarEvents, messages, notifications,
       currentPeriod, periods, simulatedDate, autoLockEnabled,
       declarationConfigs, studentDocuments, internships,
-      adminPasswordResetDone
+      adminPasswordResetDone, securityLogs
     };
-  }, [users, courses, classes, subjects, grades, attendance, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships, adminPasswordResetDone]);
+  }, [users, courses, classes, subjects, grades, attendance, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships, adminPasswordResetDone, securityLogs]);
 
   const lastReceivedPayloadRef = React.useRef<string>('');
   const lastLocalWriteTimeRef = React.useRef<string | null>(lastLocalWriteTime);
@@ -3136,11 +3136,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const triggerStorageBackup = async (): Promise<string | null> => {
     try {
+      const currentState = latestStateRef.current;
       const payload: SystemStatePayload = {
-        users, courses, classes, subjects, grades, attendance,
-        conceptRanges, calendarEvents, messages, notifications,
-        currentPeriod, periods, simulatedDate, autoLockEnabled, securityLogs,
-        adminPasswordResetDone
+        users: currentState.users,
+        courses: currentState.courses,
+        classes: currentState.classes,
+        subjects: currentState.subjects,
+        grades: currentState.grades,
+        attendance: currentState.attendance,
+        conceptRanges: currentState.conceptRanges,
+        calendarEvents: currentState.calendarEvents,
+        messages: currentState.messages,
+        notifications: currentState.notifications,
+        currentPeriod: currentState.currentPeriod,
+        periods: currentState.periods,
+        simulatedDate: currentState.simulatedDate,
+        autoLockEnabled: currentState.autoLockEnabled,
+        securityLogs: currentState.securityLogs,
+        adminPasswordResetDone: currentState.adminPasswordResetDone
       };
       
       // Calculate checksum signature
@@ -3244,7 +3257,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     checkSchedule();
     const interval = setInterval(checkSchedule, 30000);
     return () => clearInterval(interval);
-  }, [backupSchedule, users, courses, classes, subjects, grades, attendance, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, internships]);
+  }, [backupSchedule]);
 
   // Load backups list initially
   useEffect(() => {
