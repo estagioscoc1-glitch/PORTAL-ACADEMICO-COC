@@ -9,6 +9,7 @@ import { useApp } from '../context/AppContext';
 import { Printer, X, Download, ShieldCheck, FileText, Minus, Maximize2, Minimize2, ZoomIn, ZoomOut } from 'lucide-react';
 import { motion } from 'motion/react';
 import { safeLocalStorage } from '../lib/safeStorage';
+import { LOGO_COLEGIO_OSWALDO_CRUZ, ASSINATURA_SECRETARIO, ASSINATURA_JEFFERSON } from '../lib/imageAssets';
 
 interface PrintModalProps {
   documentType: 'boletim' | 'diario_notas' | 'diario_freq' | 'mapa_notas' | 'boletim_sala' | 'decl_escolaridade' | 'decl_ctransp' | 'decl_vacina' | 'historico_completo';
@@ -256,7 +257,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
   // High Fidelity SVGs representing the real physical logo systems from screenshots
   const LogoOswaldoCruzHeader = () => (
     <img
-      src="https://raw.githubusercontent.com/estagioscoc1-glitch/PORTAL-ACADEMICO-COC/main/public/logo-colegio-oswaldo-cruz.png"
+      src={LOGO_COLEGIO_OSWALDO_CRUZ}
       alt="Colégio Oswaldo Cruz"
       className="h-16 w-auto max-w-[850px] object-contain block select-none"
       referrerPolicy="no-referrer"
@@ -318,7 +319,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
 
   const YanSignature = () => (
     <img
-      src="https://raw.githubusercontent.com/estagioscoc1-glitch/PORTAL-ACADEMICO-COC/main/public/assinatura-secretario.png"
+      src={ASSINATURA_SECRETARIO}
       alt="Assinatura Yan Neres"
       className="w-56 h-auto object-contain block select-none"
       referrerPolicy="no-referrer"
@@ -1629,7 +1630,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       {/* Real Image Header provided by User with fallback */}
                       <div className="flex items-center justify-center border-b border-gray-200 pb-6 mb-8 select-none">
                         <img 
-                          src="https://raw.githubusercontent.com/estagioscoc1-glitch/PORTAL-ACADEMICO-COC/main/public/logo-colegio-oswaldo-cruz.png" 
+                          src={LOGO_COLEGIO_OSWALDO_CRUZ} 
                           alt="Cabeçalho Colégio Oswaldo Cruz" 
                           className="w-full max-h-24 max-w-[850px] object-contain block"
                           referrerPolicy="no-referrer"
@@ -1758,7 +1759,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                     <div className="space-y-12 mb-12">
                       <div className="flex justify-end pr-12 mt-12">
                         <img 
-                          src="https://raw.githubusercontent.com/estagioscoc1-glitch/PORTAL-ACADEMICO-COC/main/public/assinatura-jefferson.png" 
+                          src={ASSINATURA_JEFFERSON} 
                           alt="Assinatura Jefferson Machado" 
                           className="w-56 h-auto object-contain block select-none"
                           referrerPolicy="no-referrer"
