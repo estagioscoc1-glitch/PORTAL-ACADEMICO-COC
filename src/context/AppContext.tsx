@@ -1346,7 +1346,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         users, courses, classes, subjects, grades, attendance,
         conceptRanges, calendarEvents, messages, notifications,
         currentPeriod, periods, simulatedDate, autoLockEnabled, securityLogs,
-        declarationConfigs, studentDocuments, adminPasswordResetDone
+        declarationConfigs, studentDocuments, internships, adminPasswordResetDone
       };
       saveStateToCloud(payload).catch(err => {
         console.warn('Silent cloud save failure on logout (likely quota/network limits):', err?.message || err);
@@ -2162,7 +2162,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addAttendanceSession = (session: Omit<AttendanceSession, 'id'>) => {
     const newSession: AttendanceSession = {
       ...session,
-      id: `att_user_${Date.now()}`,
+      id: `att_user_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
       topic: session.topic.toUpperCase(),
       records: Object.keys(session.records).reduce((acc, studentId) => {
         acc[studentId] = session.records[studentId].toUpperCase() as 'P' | 'F';
@@ -2782,7 +2782,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       conceptRanges,
       calendarEvents,
       messages,
-      notifications
+      notifications,
+      currentPeriod,
+      periods,
+      simulatedDate,
+      autoLockEnabled,
+      declarationConfigs,
+      studentDocuments,
+      internships,
+      adminPasswordResetDone,
+      securityLogs
     };
     
     // Integrity checksum calculation (non-tampering verification)
@@ -2822,7 +2831,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         users, courses, classes, subjects, grades, attendance,
         conceptRanges, calendarEvents, messages, notifications,
         currentPeriod, periods, simulatedDate, autoLockEnabled, securityLogs,
-        declarationConfigs, studentDocuments, adminPasswordResetDone
+        declarationConfigs, studentDocuments, internships, adminPasswordResetDone
       };
       const success = await saveStateToCloud(payload);
       if (success) {
@@ -2894,6 +2903,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (payload.calendarEvents) { setCalendarEvents(payload.calendarEvents); safeLocalStorage.setItem('oc_calendar_events', JSON.stringify(payload.calendarEvents)); }
       if (payload.messages) { setMessages(payload.messages); safeLocalStorage.setItem('oc_messages', JSON.stringify(payload.messages)); }
       if (payload.notifications) { setNotifications(payload.notifications); safeLocalStorage.setItem('oc_notifications', JSON.stringify(payload.notifications)); }
+      if (payload.currentPeriod) { setCurrentPeriod(payload.currentPeriod); safeLocalStorage.setItem('oc_current_period', payload.currentPeriod); }
+      if (payload.periods) { setPeriods(payload.periods); safeLocalStorage.setItem('oc_periods', JSON.stringify(payload.periods)); }
+      if (payload.simulatedDate) { setSimulatedDate(payload.simulatedDate); safeLocalStorage.setItem('oc_simulated_date', payload.simulatedDate); }
+      if (payload.autoLockEnabled !== undefined) { setAutoLockEnabled(payload.autoLockEnabled); safeLocalStorage.setItem('oc_auto_lock_enabled', payload.autoLockEnabled ? 'true' : 'false'); }
+      if (payload.declarationConfigs) { setDeclarationConfigs(payload.declarationConfigs); safeLocalStorage.setItem('oc_declaration_configs', JSON.stringify(payload.declarationConfigs)); }
+      if (payload.studentDocuments) { setStudentDocuments(payload.studentDocuments); safeLocalStorage.setItem('oc_student_documents', JSON.stringify(payload.studentDocuments)); }
+      if (payload.internships) { setInternships(payload.internships); safeLocalStorage.setItem('oc_internships', JSON.stringify(payload.internships)); }
+      if (payload.adminPasswordResetDone !== undefined) { setAdminPasswordResetDone(payload.adminPasswordResetDone); safeLocalStorage.setItem('oc_admin_reset_done', payload.adminPasswordResetDone ? 'true' : 'false'); }
+      if (payload.securityLogs) { setSecurityLogs(payload.securityLogs); safeLocalStorage.setItem('oc_security_logs', JSON.stringify(payload.securityLogs)); }
 
       addSecurityLog('RESTAURACAO_LOCAL', 'Restauração de sistema bem-sucedida via upload de backup encriptado local.', 'high');
       return { success: true, message: 'Dados do sistema restaurados com sucesso!' };
@@ -2930,6 +2948,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (state.calendarEvents) { setCalendarEvents(state.calendarEvents); safeLocalStorage.setItem('oc_calendar_events', JSON.stringify(state.calendarEvents)); }
       if (state.messages) { setMessages(state.messages); safeLocalStorage.setItem('oc_messages', JSON.stringify(state.messages)); }
       if (state.notifications) { setNotifications(state.notifications); safeLocalStorage.setItem('oc_notifications', JSON.stringify(state.notifications)); }
+      if (state.declarationConfigs) { setDeclarationConfigs(state.declarationConfigs); safeLocalStorage.setItem('oc_declaration_configs', JSON.stringify(state.declarationConfigs)); }
+      if (state.studentDocuments) { setStudentDocuments(state.studentDocuments); safeLocalStorage.setItem('oc_student_documents', JSON.stringify(state.studentDocuments)); }
+      if (state.internships) { setInternships(state.internships); safeLocalStorage.setItem('oc_internships', JSON.stringify(state.internships)); }
       if (state.currentPeriod) { setCurrentPeriod(state.currentPeriod); safeLocalStorage.setItem('oc_current_period', state.currentPeriod); }
       if (state.periods) { setPeriods(state.periods); safeLocalStorage.setItem('oc_periods', JSON.stringify(state.periods)); }
       if (state.simulatedDate) { setSimulatedDate(state.simulatedDate); safeLocalStorage.setItem('oc_simulated_date', state.simulatedDate); }
