@@ -123,7 +123,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
 
           <div className="flex flex-wrap items-center gap-2.5">
             <a
-              href="https://gestordecarreira-ia.colegiooswaldocruz.com.br/"
+              href="https://col-gio-oswaldo-cruz-carreira-ia-199284089949.us-east1.run.app"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 px-4.5 py-2.5 bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-350 hover:to-teal-350 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-emerald-400/30 hover:shadow-emerald-400/50 active:scale-[0.98] transition-all cursor-pointer select-none uppercase tracking-wide border-2 border-emerald-300"
@@ -872,7 +872,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
 
               {/* Call to Action Button */}
               <a
-                href="https://gestordecarreira-ia.colegiooswaldocruz.com.br/"
+                href="https://col-gio-oswaldo-cruz-carreira-ia-199284089949.us-east1.run.app"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 w-full py-3 px-4 bg-emerald-400 hover:bg-emerald-350 active:scale-[0.98] text-slate-950 font-black rounded-2xl text-xs sm:text-sm tracking-wide shadow-lg shadow-emerald-400/20 hover:shadow-emerald-400/30 transition-all duration-200 cursor-pointer text-center"

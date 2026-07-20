@@ -107,7 +107,6 @@ interface AppContextType {
   // Admin DB controls
   wipeAllData: () => void;
   loadDemoData: () => void;
-  clearAllStudentsAndFixEnfEad: () => Promise<void>;
   
   // Auth
   login: (username: string, cpfOrEnrollment: string, role: UserRole) => Promise<boolean>;
@@ -1113,79 +1112,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     else safeLocalStorage.removeItem('oc_active_subject_id');
   }, [activeSubjectId]);
 
-  // One-time automatic cleanup and repair on start
-  useEffect(() => {
-    if (isLoading) return;
 
-    const runAutoCleanup = async () => {
-      const alreadyDone = safeLocalStorage.getItem('oc_auto_cleanup_done_1') === 'true';
-      if (alreadyDone) return;
-
-      console.log('[AutoCleanup] Running one-time automatic database maintenance to clear students and repair Enfermagem EAD curriculum...');
-      
-      // Mark as done immediately to prevent re-entrancy
-      safeLocalStorage.setItem('oc_auto_cleanup_done_1', 'true');
-
-      // 1. Clean student users
-      const cleanUsers = users.filter(u => u.role !== UserRole.STUDENT);
-      setUsers(cleanUsers);
-      safeLocalStorage.setItem('oc_users', JSON.stringify(cleanUsers));
-
-      // 2. Clear student grades
-      setGrades([]);
-      safeLocalStorage.setItem('oc_grades', JSON.stringify([]));
-
-      // 3. Clear student attendance
-      setAttendance([]);
-      safeLocalStorage.setItem('oc_attendance', JSON.stringify([]));
-
-      // 4. Clear student documents and internships
-      setStudentDocuments([]);
-      safeLocalStorage.setItem('oc_student_documents', JSON.stringify([]));
-
-      setInternships([]);
-      safeLocalStorage.setItem('oc_internships', JSON.stringify([]));
-
-      // 5. Fix Enfermagem EAD subjects
-      const otherSubjects = subjects.filter(s => s.courseId !== 'ENF_EAD');
-      const pristineEnfEadSubjects = initialSubjects.filter(s => s.courseId === 'ENF_EAD');
-      const updatedSubjects = [...otherSubjects, ...pristineEnfEadSubjects];
-      
-      setSubjects(updatedSubjects);
-      safeLocalStorage.setItem('oc_subjects', JSON.stringify(updatedSubjects));
-
-      addSecurityLog('ALUNOS_LIMPOS_EAD_CORRIGIDO_AUTO', 'Manutenção Automática: Todos os alunos foram excluídos e a grade de Enfermagem EAD foi reconfigurada.', 'high');
-
-      if (db) {
-        const payload: SystemStatePayload = {
-          users: cleanUsers,
-          courses,
-          classes,
-          subjects: updatedSubjects,
-          grades: [],
-          attendance: [],
-          conceptRanges,
-          calendarEvents,
-          messages,
-          notifications,
-          currentPeriod,
-          periods,
-          simulatedDate,
-          autoLockEnabled,
-          securityLogs,
-          declarationConfigs,
-          studentDocuments: [],
-          internships: [],
-          adminPasswordResetDone
-        };
-        await saveStateToCloud(payload);
-      }
-    };
-
-    runAutoCleanup().catch(err => {
-      console.error('[AutoCleanup] Maintenance failed:', err);
-    });
-  }, [isLoading]);
 
   // Recalculate grades whenever attendance or concept ranges change
   useEffect(() => {
@@ -2194,64 +2121,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveSubjectId('enf_m1_anatomia');
 
     addSecurityLog('BANCO_LIMPO', 'Exclusão completa de alunos, professores, diários, matrículas e lançamentos efetuada com sucesso.', 'high');
-  };
-
-  const clearAllStudentsAndFixEnfEad = async () => {
-    // 1. Clean only students
-    const cleanUsers = users.filter(u => u.role !== UserRole.STUDENT);
-    setUsers(cleanUsers);
-    safeLocalStorage.setItem('oc_users', JSON.stringify(cleanUsers));
-
-    // 2. Clear student grades
-    setGrades([]);
-    safeLocalStorage.setItem('oc_grades', JSON.stringify([]));
-
-    // 3. Clear student attendance
-    setAttendance([]);
-    safeLocalStorage.setItem('oc_attendance', JSON.stringify([]));
-
-    // 4. Clear student documents and internships
-    setStudentDocuments([]);
-    safeLocalStorage.setItem('oc_student_documents', JSON.stringify([]));
-
-    setInternships([]);
-    safeLocalStorage.setItem('oc_internships', JSON.stringify([]));
-
-    // 5. Fix Enfermagem EAD subjects: keep other course subjects, but completely replace ENF_EAD subjects with pristine ones
-    const otherSubjects = subjects.filter(s => s.courseId !== 'ENF_EAD');
-    const pristineEnfEadSubjects = initialSubjects.filter(s => s.courseId === 'ENF_EAD');
-    const updatedSubjects = [...otherSubjects, ...pristineEnfEadSubjects];
-    
-    setSubjects(updatedSubjects);
-    safeLocalStorage.setItem('oc_subjects', JSON.stringify(updatedSubjects));
-
-    addSecurityLog('ALUNOS_LIMPOS_EAD_CORRIGIDO', 'Todos os alunos foram excluídos e a grade de Enfermagem EAD foi reconfigurada com sucesso.', 'high');
-
-    // Sync directly to the cloud to ensure Firestore is updated immediately
-    if (db) {
-      const payload: SystemStatePayload = {
-        users: cleanUsers,
-        courses,
-        classes,
-        subjects: updatedSubjects,
-        grades: [],
-        attendance: [],
-        conceptRanges,
-        calendarEvents,
-        messages,
-        notifications,
-        currentPeriod,
-        periods,
-        simulatedDate,
-        autoLockEnabled,
-        securityLogs,
-        declarationConfigs,
-        studentDocuments: [],
-        internships: [],
-        adminPasswordResetDone
-      };
-      await saveStateToCloud(payload);
-    }
   };
 
   const loadDemoData = () => {
@@ -3367,7 +3236,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateCalendarEventDate,
       isClassS1Locked, isClassS2Locked, isClassDefinitiveLocked,
       currentPeriod, periods, setCurrentPeriod, addPeriod,
-      wipeAllData, loadDemoData, clearAllStudentsAndFixEnfEad,
+      wipeAllData, loadDemoData,
       login, logout, updatePassword, recoverPassword,
       setActiveClassId, setActiveSubjectId,
       addCourse, addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, updateConceptRanges,
