@@ -512,6 +512,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [hasReceivedInitialCloudSync, setHasReceivedInitialCloudSync] = useState<boolean>(false);
 
   // Storage Backups & Scheduling states
   const [backupSchedule, setBackupSchedule] = useState<BackupScheduleConfig>(() => {
@@ -831,6 +832,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
 
           setCloudBackupStatus('success');
+          setHasReceivedInitialCloudSync(true);
         } else {
           setCloudBackupStatus('idle');
           // If Firestore database is empty, seed it with initial setup data
@@ -843,6 +845,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           };
           await saveStateToCloud(payload);
           addSecurityLog('SINC_NUVEM_CRIACAO', 'Primeiro nó de dados criado e persistido com sucesso na nuvem Firestore.', 'low');
+          setHasReceivedInitialCloudSync(true);
         }
       } catch (err: any) {
         console.error('Erro ao processar dados recebidos do Firestore:', err);
@@ -3268,6 +3271,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Automated background backup running with debounced real-time autosave (persists replica in Google Cloud Firestore)
   useEffect(() => {
+    if (!hasReceivedInitialCloudSync) return;
     if (isLoading) return; // Prevent overwriting cloud data during initial loading phase
     if (cloudBackupStatus === 'quota_exceeded') return; // Do not attempt saves if quota is exceeded
 
@@ -3350,7 +3354,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 1000); // 1000ms debounce delay to batch multiple updates together
 
     return () => clearTimeout(delayDebounceFn);
-  }, [isLoading, users, courses, classes, subjects, grades, attendance, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships, adminPasswordResetDone]);
+  }, [isLoading, hasReceivedInitialCloudSync, users, courses, classes, subjects, grades, attendance, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships, adminPasswordResetDone]);
 
   return (
     <AppContext.Provider value={{
