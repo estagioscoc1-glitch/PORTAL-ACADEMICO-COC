@@ -654,7 +654,7 @@ export const AttendanceJournal: React.FC = () => {
                             Transferido p/ {classes.find(c => c.id === stud.classId)?.name || 'outra sala'}
                           </span>
                         )}
-                        {isOverLimit && !isTransferred && (
+                        {isOverLimit && !isTransferred && absStats.total > 0 && (
                           <span className="text-[8px] text-red-500 font-black uppercase tracking-wider mt-0.5">
                             Excedeu limite ({maxAbsencesLimit}h)
                           </span>

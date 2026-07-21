@@ -314,7 +314,7 @@ export const AdminDashboard: React.FC = () => {
 
   activePeriodGrades.forEach(g => {
     if (g.result === 'APTO') approvedCount++;
-    else if (g.result === 'NÃO APTO' || g.result === 'F. NOTA') failedCount++;
+    else if (g.result === 'NÃO APTO' || g.result === 'F. NOTA' || g.result === 'REP. FALTAS') failedCount++;
     else pendingGrades++;
   });
 
@@ -936,7 +936,7 @@ export const AdminDashboard: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] uppercase block">Retidos por Faltas</span>
-                  <span className="text-xl font-bold font-mono text-red-600">{grades.filter(g => g.result === 'F. NOTA').length}</span>
+                  <span className="text-xl font-bold font-mono text-red-600">{grades.filter(g => g.result === 'REP. FALTAS').length}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] uppercase block">Abertura Diários</span>
@@ -3625,7 +3625,7 @@ export const AdminDashboard: React.FC = () => {
                   if (score) {
                     gradeCount++;
                     sumGrades += score.pf;
-                    if (score.result === 'NÃO APTO' || score.result === 'F. NOTA') {
+                    if (score.result === 'NÃO APTO' || score.result === 'F. NOTA' || score.result === 'REP. FALTAS') {
                       failsCount++;
                     }
                   }
@@ -3823,7 +3823,7 @@ export const AdminDashboard: React.FC = () => {
                                     <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${
                                       result === 'APTO' 
                                         ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' 
-                                        : result === 'F. NOTA' 
+                                        : (result === 'F. NOTA' || result === 'REP. FALTAS') 
                                         ? 'bg-red-50 text-red-750 dark:bg-red-950/45 dark:text-red-400' 
                                         : result === 'NÃO APTO' 
                                         ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/45 dark:text-amber-400'

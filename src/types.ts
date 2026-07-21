@@ -91,7 +91,7 @@ export interface GradeRecord {
   afc: number | null; // AFC (Avaliação Final de Competência)
   pf: number; // Pontuação Final calculated
   concept: string; // A, B, C, D, etc.
-  result: 'APTO' | 'NÃO APTO' | 'F. NOTA' | 'Pendente';
+  result: 'APTO' | 'NÃO APTO' | 'F. NOTA' | 'REP. FALTAS' | 'Pendente';
 }
 
 export interface AttendanceSession {

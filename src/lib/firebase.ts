@@ -117,8 +117,16 @@ export async function saveStateToCloud(state: SystemStatePayload): Promise<boole
     }, { merge: true });
     return true;
   } catch (error: any) {
+    const isQuota = error?.code === 'resource-exhausted' || 
+                    error?.message?.toLowerCase().includes('quota') || 
+                    error?.message?.toLowerCase().includes('exhausted') ||
+                    error?.message?.toLowerCase().includes('limit exceeded');
+    if (isQuota) {
+      console.warn('Firestore write paused (Quota limit exceeded). App operating in LocalStorage/IndexedDB mode.');
+      return false;
+    }
     console.error('Firestore write failed:', error?.message || error);
-    throw error;
+    return false;
   }
 }
 
@@ -139,8 +147,16 @@ export async function loadStateFromCloud(): Promise<SystemStatePayload | null | 
     }
     return null;
   } catch (error: any) {
+    const isQuota = error?.code === 'resource-exhausted' || 
+                    error?.message?.toLowerCase().includes('quota') || 
+                    error?.message?.toLowerCase().includes('exhausted') ||
+                    error?.message?.toLowerCase().includes('limit exceeded');
+    if (isQuota) {
+      console.warn('Firestore read paused (Quota limit exceeded). App operating in LocalStorage/IndexedDB mode.');
+      return { isOffline: true };
+    }
     console.error('Firestore read failed:', error?.message || error);
-    throw error;
+    return { isOffline: true };
   }
 }
 

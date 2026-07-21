@@ -574,9 +574,9 @@ export const GradeJournal: React.FC = () => {
                     {/* Result */}
                     <td className="py-2.5 px-3 text-right">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black tracking-wide ${
-                        grade.result === 'APTO' 
+                        grade.result?.includes('APTO') 
                           ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400' 
-                          : grade.result === 'F. NOTA'
+                          : (grade.result === 'F. NOTA' || grade.result === 'REP. FALTAS' || grade.result === 'NÃO APTO')
                             ? 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400'
                             : 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400'
                       }`}>

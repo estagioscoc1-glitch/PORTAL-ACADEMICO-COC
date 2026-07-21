@@ -1,4 +1,5 @@
 import { User, UserRole, Course, ClassSection, Subject, GradeRecord, AttendanceSession, ConceptRange, AcademicCalendarEvent, Shift, CalendarEventType } from '../types';
+import { allPdfStudentUsers } from './allPdfStudents';
 
 export const initialCourses: Course[] = [
   {
@@ -35,7 +36,7 @@ export const initialConceptRanges: ConceptRange[] = [
   { id: '4', minGrade: 0, maxGrade: 59, letter: 'D', description: 'Insuficiente' }
 ];
 
-// Pristine base users list containing ONLY the Pedagogy Administrator
+// Pristine base users list containing Pedagogy Administrator and all PDF imported students
 export const initialUsers: User[] = [
   {
     id: 'admin',
@@ -45,7 +46,8 @@ export const initialUsers: User[] = [
     role: UserRole.ADMIN,
     password: '',
     active: true
-  }
+  },
+  ...allPdfStudentUsers
 ];
 
 // Complete Curriculum Matrix for all Technical Courses (Subjects and workloads)
@@ -440,7 +442,7 @@ export const getDemoDataToLoad = () => {
         const pf = Math.min(100, s1 + s2 + afc + (extra ?? 0) + (conselho ?? 0));
 
         const concept = pf >= 86 ? 'A' : pf >= 76 ? 'B' : pf >= 60 ? 'C' : 'D';
-        const result = isAbsentee ? 'F. NOTA' : pf >= 60 ? 'APTO' : 'NÃO APTO';
+        const result = isAbsentee ? 'REP. FALTAS' : pf >= 60 ? 'APTO' : 'NÃO APTO';
 
         demoGrades.push({
           id: `g_demo_${classId}_${sub.id}_${std.id}`,

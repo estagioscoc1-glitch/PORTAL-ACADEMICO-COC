@@ -285,9 +285,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                           <td className="py-2.5 px-2 text-center font-black">{score ? score.concept : 'D'}</td>
                           <td className="py-2.5 px-3 text-right">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black tracking-wide ${
-                              score?.result === 'APTO' 
+                              score?.result?.includes('APTO') 
                                 ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400' 
-                                : score?.result === 'F. NOTA'
+                                : (score?.result === 'F. NOTA' || score?.result === 'REP. FALTAS' || score?.result === 'NÃO APTO')
                                   ? 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400'
                                   : 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400'
                             }`}>

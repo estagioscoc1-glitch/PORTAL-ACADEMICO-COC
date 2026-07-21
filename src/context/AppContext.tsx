@@ -1114,7 +1114,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 
 
-  // Recalculate grades whenever attendance or concept ranges change
+  // Recalculate grades whenever attendance or concept ranges or direct absences change
   useEffect(() => {
     // We update grades to match the attendance frequency automatically
     setGrades(prevGrades => {
@@ -1132,7 +1132,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       return changed ? updated : prevGrades;
     });
-  }, [attendance, conceptRanges, subjects]);
+  }, [attendance, conceptRanges, subjects, directAbsences]);
 
   // Absences Internal Helper
   const getStudentAbsencesInternal = (
@@ -1468,18 +1468,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return matched ? matched.letter : 'D';
   };
 
-  const getStudentResult = (g: Partial<GradeRecord> & { pf: number }, frequency: number): 'APTO' | 'NÃO APTO' | 'F. NOTA' | 'Pendente' => {
-    // If student was failed by attendance
-    if (frequency < 75) {
+  const getStudentResult = (g: Partial<GradeRecord> & { pf?: number }, frequency?: number): 'APTO' | 'NÃO APTO' | 'F. NOTA' | 'REP. FALTAS' | 'Pendente' => {
+    if (g.result === 'REP. FALTAS') {
+      return 'REP. FALTAS';
+    }
+    const calcPf = (g.s1 || 0) + (g.s2 || 0) + (g.afc || 0) + (g.extra || 0) + (g.conselho || 0);
+    const totalScore = (g.pf !== undefined && g.pf !== null && g.pf > 0) ? g.pf : calcPf;
+
+    if (totalScore >= 60 || (g.result && String(g.result).toUpperCase().includes('APTO'))) {
+      return (g.result as any) || 'APTO';
+    }
+    if (totalScore > 0 || g.s1 !== null || g.s2 !== null || g.afc !== null) {
       return 'F. NOTA';
     }
-    const totalScore = g.pf;
-    const isApproved = totalScore >= 60;
-    
-    if (isApproved) {
-      return 'APTO';
-    }
-    return 'NÃO APTO';
+    return 'Pendente';
   };
 
   // Mutators
@@ -2018,7 +2020,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             // Result mapping based on attendance frequency
             const { frequency } = getStudentAbsences(merged.studentId, merged.subjectId, merged.classId);
-            const result = getStudentResult({ pf, extra, conselho, afc: afcVal }, frequency);
+            const result = getStudentResult({ ...merged, pf }, frequency);
 
             return {
               ...merged,
@@ -2066,7 +2068,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const pf = Math.min(100, s1 + s2 + (afcVal ?? 0) + extra + conselho);
         const concept = getStudentConcept(pf, conceptRanges);
         const { frequency } = getStudentAbsences(newRecord.studentId, newRecord.subjectId, newRecord.classId);
-        const result = getStudentResult({ pf, extra, conselho, afc: afcVal }, frequency);
+        const result = getStudentResult({ ...newRecord, pf }, frequency);
         return [...prev, {
           ...newRecord,
           afc: afcVal,
@@ -2509,6 +2511,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 g.classId === classSection!.id
               );
 
+              const rawFaltas = recItem.faltas ?? recItem.ftas ?? recItem.Ftas ?? recItem.totalFaltas ?? recItem.absences ?? 0;
+              const numFaltas = Number(rawFaltas || 0);
+              const subWorkload = subject?.workload || 80;
+              const calcFreq = subWorkload > 0 ? Math.max(0, ((subWorkload - numFaltas) / subWorkload) * 100) : 100;
+
+              const rawResultStr = String(result || '').trim().toUpperCase();
+              const isExplicitAbsenceFail = rawResultStr.includes('REP. FALTAS') || rawResultStr.includes('REPROVADO POR FALTA');
+
+              let finalResult: 'APTO' | 'NÃO APTO' | 'F. NOTA' | 'REP. FALTAS' | 'Pendente' = 'Pendente';
+              if (isExplicitAbsenceFail) {
+                finalResult = 'REP. FALTAS';
+              } else if (rawResultStr.includes('F. NOTA') || rawResultStr.includes('F.NOTA')) {
+                finalResult = 'F. NOTA';
+              } else if (rawResultStr.includes('NÃO APTO') || rawResultStr.includes('NAO APTO')) {
+                finalResult = 'NÃO APTO';
+              } else if (rawResultStr.includes('APTO')) {
+                finalResult = 'APTO';
+              } else if (Number(pf) >= 60) {
+                finalResult = 'APTO';
+              } else if (Number(pf) > 0) {
+                finalResult = 'NÃO APTO';
+              } else {
+                finalResult = 'Pendente';
+              }
+
               if (gradeRecord) {
                 gradeRecord.av1 = av1 !== null && av1 !== undefined ? Number(av1) : null;
                 gradeRecord.av4 = av4 !== null && av4 !== undefined ? Number(av4) : null;
@@ -2518,8 +2545,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 gradeRecord.extra = extra !== null ? Number(extra) : null;
                 gradeRecord.conselho = conselho !== null ? Number(conselho) : null;
                 gradeRecord.pf = Number(pf);
-                gradeRecord.concept = concept || 'D';
-                gradeRecord.result = result as any || 'Pendente';
+                gradeRecord.concept = concept || (Number(pf) >= 86 ? 'A' : (Number(pf) >= 76 ? 'B' : (Number(pf) >= 60 ? 'C' : 'D')));
+                gradeRecord.result = finalResult;
               } else {
                 gradeRecord = {
                   id: `g_hist_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -2534,8 +2561,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   extra: extra !== null ? Number(extra) : null,
                   conselho: conselho !== null ? Number(conselho) : null,
                   pf: Number(pf),
-                  concept: concept || 'D',
-                  result: result as any || 'Pendente'
+                  concept: concept || (Number(pf) >= 86 ? 'A' : (Number(pf) >= 76 ? 'B' : (Number(pf) >= 60 ? 'C' : 'D'))),
+                  result: finalResult
                 };
                 currentGrades.push(gradeRecord);
               }
@@ -2543,7 +2570,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
               // 7. Absences Register
               const absenceKey = `${classSection!.id}_${subject!.id}_${studentId}`;
-              currentDirectAbsences[absenceKey] = Number(faltas || 0);
+              currentDirectAbsences[absenceKey] = numFaltas;
             });
           }
         });
