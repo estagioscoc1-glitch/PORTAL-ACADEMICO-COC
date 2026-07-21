@@ -2452,7 +2452,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           // 5. For each record within the subject
           if (Array.isArray(records)) {
             records.forEach((recItem: any) => {
-              const { studentName, studentEnrollment, s1, s2, afc, extra, conselho, pf, faltas, concept, result } = recItem;
+              const { studentName, studentEnrollment, av1, av4, s1, s2, afc, extra, conselho, pf, faltas, concept, result } = recItem;
 
               let student: any = null;
               if (studentEnrollment && typeof studentEnrollment === 'string' && studentEnrollment.trim() !== '') {
@@ -2510,6 +2510,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               );
 
               if (gradeRecord) {
+                gradeRecord.av1 = av1 !== null && av1 !== undefined ? Number(av1) : null;
+                gradeRecord.av4 = av4 !== null && av4 !== undefined ? Number(av4) : null;
                 gradeRecord.s1 = Number(s1);
                 gradeRecord.s2 = Number(s2);
                 gradeRecord.afc = afc !== null ? Number(afc) : null;
@@ -2524,8 +2526,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   studentId,
                   subjectId: subject!.id,
                   classId: classSection!.id,
-                  av1: null, av2: null, av3: null, recS1: null, s1: Number(s1),
-                  av4: null, av5: null, av6: null, recS2: null, s2: Number(s2),
+                  av1: av1 !== null && av1 !== undefined ? Number(av1) : null,
+                  av2: null, av3: null, recS1: null, s1: Number(s1),
+                  av4: av4 !== null && av4 !== undefined ? Number(av4) : null,
+                  av5: null, av6: null, recS2: null, s2: Number(s2),
                   afc: afc !== null ? Number(afc) : null,
                   extra: extra !== null ? Number(extra) : null,
                   conselho: conselho !== null ? Number(conselho) : null,
