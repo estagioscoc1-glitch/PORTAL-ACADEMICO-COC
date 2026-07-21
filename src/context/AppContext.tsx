@@ -2452,15 +2452,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           // 5. For each record within the subject
           if (Array.isArray(records)) {
             records.forEach((recItem: any) => {
-              const { studentName, s1, s2, afc, extra, conselho, pf, faltas, concept, result } = recItem;
+              const { studentName, studentEnrollment, s1, s2, afc, extra, conselho, pf, faltas, concept, result } = recItem;
 
-              const cleanName = (nameStr: string) => nameStr.trim().replace(/\s+/g, ' ').toLowerCase();
-              const cleanedTargetName = cleanName(studentName);
+              let student: any = null;
+              if (studentEnrollment && typeof studentEnrollment === 'string' && studentEnrollment.trim() !== '') {
+                student = currentUsers.find(u => 
+                  u.role === UserRole.STUDENT && 
+                  u.enrollment === studentEnrollment.trim()
+                );
+              }
 
-              let student = currentUsers.find(u => 
-                u.role === UserRole.STUDENT && 
-                cleanName(u.name) === cleanedTargetName
-              );
+              if (!student) {
+                const cleanName = (nameStr: string) => nameStr.trim().replace(/\s+/g, ' ').toLowerCase();
+                const cleanedTargetName = cleanName(studentName);
+                student = currentUsers.find(u => 
+                  u.role === UserRole.STUDENT && 
+                  cleanName(u.name) === cleanedTargetName
+                );
+              }
 
               let studentId = '';
               if (student) {
@@ -2486,7 +2495,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   email: `${normalizedUsername}@historico.oc.com`,
                   role: UserRole.STUDENT,
                   active: true,
-                  classId: classSection!.id
+                  classId: classSection!.id,
+                  enrollment: studentEnrollment && typeof studentEnrollment === 'string' && studentEnrollment.trim() !== '' ? studentEnrollment.trim() : undefined
                 };
                 currentUsers.push(student);
                 studentsCreated++;
