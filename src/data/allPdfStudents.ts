@@ -8,6 +8,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236017@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236017',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -17,6 +18,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25111001@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25111001',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -26,6 +28,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236020@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236020',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -35,6 +38,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25202006@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25202006',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -44,6 +48,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236023@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236023',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -53,6 +58,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201024@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201024',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -62,6 +68,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201011@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201011',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -71,6 +78,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236038@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236038',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -80,6 +88,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201007@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201007',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -89,6 +98,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236025@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236025',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -98,6 +108,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101049@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101049',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -107,6 +118,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236051@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236051',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -116,6 +128,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25202004@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25202004',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -125,6 +138,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236029@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236029',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -134,6 +148,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25211002@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25211002',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -143,6 +158,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26136004@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26136004',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -152,6 +168,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236004@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236004',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -161,6 +178,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236027@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236027',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -170,6 +188,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201002@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201002',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -179,6 +198,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25211005@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25211005',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -188,6 +208,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236028@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236028',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -197,6 +218,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26111001@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26111001',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -206,6 +228,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201019@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201019',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -215,6 +238,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101007@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101007',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -224,6 +248,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101019@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101019',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -233,6 +258,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25211001@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25211001',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -242,6 +268,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101013@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101013',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -251,6 +278,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26102005@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26102005',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -260,6 +288,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26102003@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26102003',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -269,6 +298,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25111017@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25111017',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -278,6 +308,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26111006@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26111006',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -287,6 +318,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25211003@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25211003',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -296,6 +328,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101004@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101004',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -305,6 +338,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201036@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201036',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -314,6 +348,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101028@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101028',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -323,6 +358,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236041@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236041',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -332,6 +368,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101001@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101001',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -341,6 +378,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236040@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236040',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -350,6 +388,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25101027@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25101027',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -359,6 +398,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25101015@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25101015',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -368,6 +408,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26102004@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26102004',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -377,6 +418,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236044@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236044',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -386,6 +428,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101016@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101016',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -395,6 +438,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26102007@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26102007',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -404,6 +448,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101037@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101037',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -413,6 +458,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26102002@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26102002',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -422,6 +468,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236043@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236043',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -431,6 +478,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201033@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201033',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -440,6 +488,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101014@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101014',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -449,6 +498,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201035@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201035',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -458,6 +508,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25101006@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25101006',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -467,6 +518,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101023@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101023',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -476,6 +528,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201021@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201021',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -485,6 +538,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101025@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101025',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -494,6 +548,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25101057@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25101057',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -503,6 +558,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25211012@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25211012',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -512,6 +568,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236009@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236009',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -521,6 +578,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201026@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201026',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -530,6 +588,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236018@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236018',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -539,6 +598,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201018@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201018',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -548,6 +608,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236010@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236010',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -557,6 +618,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101041@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101041',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -566,6 +628,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101042@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101042',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -575,6 +638,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25211015@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25211015',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -584,6 +648,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25202009@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25202009',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -593,6 +658,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101011@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101011',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -602,6 +668,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201005@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201005',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -611,6 +678,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101039@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101039',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -620,6 +688,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25111008@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25111008',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -629,6 +698,7 @@ export const allPdfStudentUsers: User[] = [
     email: '24202006@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '24202006',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -638,6 +708,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25202015@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25202015',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -647,6 +718,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201009@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201009',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -656,6 +728,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201032@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201032',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -665,6 +738,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25102014@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25102014',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -674,6 +748,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26111014@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26111014',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -683,6 +758,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201016@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201016',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -692,6 +768,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25211010@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25211010',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -701,6 +778,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101047@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101047',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -710,6 +788,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236022@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236022',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -719,6 +798,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201029@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201029',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -728,6 +808,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25202010@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25202010',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -737,6 +818,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25136034@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25136034',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -746,6 +828,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236019@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236019',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -755,6 +838,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236001@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236001',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -764,6 +848,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25202003@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25202003',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -773,6 +858,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25202002@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25202002',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -782,6 +868,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101006@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101006',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -791,6 +878,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25202012@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25202012',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -800,6 +888,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101003@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101003',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -809,6 +898,7 @@ export const allPdfStudentUsers: User[] = [
     email: '24211007@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '24211007',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -818,6 +908,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201004@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201004',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -827,6 +918,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201014@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201014',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -836,6 +928,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25111014@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25111014',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -845,6 +938,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25136042@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25136042',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -854,6 +948,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201031@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201031',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -863,6 +958,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101031@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101031',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -872,6 +968,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236034@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236034',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -881,6 +978,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236002@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236002',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -890,6 +988,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25202016@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25202016',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -899,6 +998,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25202008@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25202008',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -908,6 +1008,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101017@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101017',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -917,6 +1018,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201006@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201006',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -926,6 +1028,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25202011@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25202011',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -935,6 +1038,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26102006@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26102006',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -944,6 +1048,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26102001@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26102001',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -953,6 +1058,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101027@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101027',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -962,6 +1068,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236013@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236013',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -971,6 +1078,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236035@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236035',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -980,6 +1088,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236011@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236011',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -989,6 +1098,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25101055@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25101055',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -998,6 +1108,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101022@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101022',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1007,6 +1118,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201001@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201001',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1016,6 +1128,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236048@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236048',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1025,6 +1138,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26111016@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26111016',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1034,6 +1148,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236016@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236016',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1043,6 +1158,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101008@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101008',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1052,6 +1168,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236007@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236007',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1061,6 +1178,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26136002@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26136002',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1070,6 +1188,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26136003@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26136003',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1079,6 +1198,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101040@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101040',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1088,6 +1208,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25202005@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25202005',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1097,6 +1218,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201027@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201027',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1106,6 +1228,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26111010@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26111010',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1115,6 +1238,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236005@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236005',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1124,6 +1248,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26102009@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26102009',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1133,6 +1258,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236026@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236026',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1142,6 +1268,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101036@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101036',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1151,6 +1278,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26111004@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26111004',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1160,6 +1288,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236032@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236032',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1169,6 +1298,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101038@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101038',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1178,6 +1308,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25211007@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25211007',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1187,6 +1318,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25211013@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25211013',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1196,6 +1328,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236047@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236047',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1205,6 +1338,7 @@ export const allPdfStudentUsers: User[] = [
     email: '24101078@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '24101078',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1214,6 +1348,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25102008@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25102008',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1223,6 +1358,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101024@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101024',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1232,6 +1368,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101026@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101026',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1241,6 +1378,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25211008@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25211008',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1250,6 +1388,7 @@ export const allPdfStudentUsers: User[] = [
     email: '23202006@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '23202006',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1259,6 +1398,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201037@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201037',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1268,6 +1408,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101030@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101030',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1277,6 +1418,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101018@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101018',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1286,6 +1428,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25101011@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25101011',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1295,6 +1438,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25211014@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25211014',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1304,6 +1448,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25202001@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25202001',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1313,6 +1458,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25101017@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25101017',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1322,6 +1468,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25101054@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25101054',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1331,6 +1478,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26111015@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26111015',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1340,6 +1488,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26111011@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26111011',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1349,6 +1498,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236003@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236003',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1358,6 +1508,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101021@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101021',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1367,6 +1518,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25211009@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25211009',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1376,6 +1528,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236031@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236031',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1385,6 +1538,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25102016@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25102016',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1394,6 +1548,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25111015@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25111015',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1403,6 +1558,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25101005@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25101005',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1412,6 +1568,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25101030@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25101030',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1421,6 +1578,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201012@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201012',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1430,6 +1588,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101010@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101010',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1439,6 +1598,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26111002@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26111002',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1448,6 +1608,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26111009@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26111009',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1457,6 +1618,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101050@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101050',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1466,6 +1628,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236024@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236024',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1475,6 +1638,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25202007@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25202007',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1484,6 +1648,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101015@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101015',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1493,6 +1658,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236030@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236030',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1502,6 +1668,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201030@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201030',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1511,6 +1678,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201023@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201023',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1520,6 +1688,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101009@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101009',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1529,6 +1698,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236039@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236039',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1538,6 +1708,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26111007@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26111007',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1547,6 +1718,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101033@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101033',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1556,6 +1728,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101043@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101043',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1565,6 +1738,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25102021@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25102021',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1574,6 +1748,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201020@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201020',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1583,6 +1758,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201028@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201028',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1592,6 +1768,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236046@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236046',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1601,6 +1778,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201025@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201025',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1610,6 +1788,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101044@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101044',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1619,6 +1798,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101035@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101035',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1628,6 +1808,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236015@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236015',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1637,6 +1818,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236012@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236012',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1646,6 +1828,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201003@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201003',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1655,6 +1838,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25102012@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25102012',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1664,6 +1848,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236014@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236014',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1673,6 +1858,7 @@ export const allPdfStudentUsers: User[] = [
     email: '24210006@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '24210006',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1682,6 +1868,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236049@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236049',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1691,6 +1878,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25202013@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25202013',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1700,6 +1888,7 @@ export const allPdfStudentUsers: User[] = [
     email: '24101027@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '24101027',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1709,6 +1898,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236033@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236033',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1718,6 +1908,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101029@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101029',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1727,6 +1918,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101002@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101002',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1736,6 +1928,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101032@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101032',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1745,6 +1938,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26136005@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26136005',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1754,6 +1948,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25102011@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25102011',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1763,6 +1958,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25111013@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25111013',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1772,6 +1968,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26111012@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26111012',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1781,6 +1978,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201017@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201017',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1790,6 +1988,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26102008@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26102008',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1799,6 +1998,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101046@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101046',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1808,6 +2008,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26111013@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26111013',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1817,6 +2018,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236050@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236050',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1826,6 +2028,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101048@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101048',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1835,6 +2038,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236036@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236036',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1844,6 +2048,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201008@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201008',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1853,6 +2058,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25201013@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25201013',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1862,6 +2068,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101020@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101020',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1871,6 +2078,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26101034@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26101034',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1880,6 +2088,7 @@ export const allPdfStudentUsers: User[] = [
     email: '26102010@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '26102010',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1889,6 +2098,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25236037@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25236037',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1898,6 +2108,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25211006@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25211006',
+    classId: 'class_enf_m1_matutino',
     active: true
   },
   {
@@ -1907,6 +2118,7 @@ export const allPdfStudentUsers: User[] = [
     email: '25211011@aluno.oc.com',
     role: UserRole.STUDENT,
     enrollment: '25211011',
+    classId: 'class_enf_m1_matutino',
     active: true
   }
 ];

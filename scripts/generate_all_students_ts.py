@@ -225,6 +225,7 @@ for name, enrollment in enrollment_map.items():
                       f"    email: '{enrollment}@aluno.oc.com',\n"
                       "    role: UserRole.STUDENT,\n"
                       f"    enrollment: '{enrollment}',\n"
+                      "    classId: 'class_enf_m1_matutino',\n"
                       "    active: true\n"
                       "  }")
 

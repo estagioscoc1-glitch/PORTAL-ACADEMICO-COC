@@ -172,10 +172,11 @@ export const AdminDashboard: React.FC = () => {
   const activePeriodAttendance = attendance.filter(s => activePeriodClassIds.includes(s.classId));
 
   const activePeriodStudentIds = Array.from(new Set(activePeriodGrades.map(g => g.studentId)));
-  const activePeriodStudents = users.filter(u => 
-    u.role === UserRole.STUDENT && 
-    (activePeriodClassIds.includes(u.classId || '') || activePeriodStudentIds.includes(u.id))
+  const allStudentUsers = users.filter(u => u.role === UserRole.STUDENT);
+  const matchedPeriodStudents = allStudentUsers.filter(u => 
+    activePeriodClassIds.includes(u.classId || '') || activePeriodStudentIds.includes(u.id)
   );
+  const activePeriodStudents = matchedPeriodStudents.length > 0 ? matchedPeriodStudents : allStudentUsers;
 
   // New class state
   const [className, setClassName] = useState('');
@@ -575,7 +576,7 @@ export const AdminDashboard: React.FC = () => {
   };
 
   // Filter student directory search
-  const filteredStudents = activeStudents.filter(s => {
+  const filteredStudents = (searchQuery.trim() !== '' ? allStudentUsers : activeStudents).filter(s => {
     return s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.enrollment?.includes(searchQuery);
   });
 

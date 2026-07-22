@@ -1,5 +1,6 @@
 import { User, UserRole, Course, ClassSection, Subject, GradeRecord, AttendanceSession, ConceptRange, AcademicCalendarEvent, Shift, CalendarEventType } from '../types';
 import { allPdfStudentUsers } from './allPdfStudents';
+import { initialGrades } from './initialGrades';
 
 export const initialCourses: Course[] = [
   {
@@ -207,6 +208,9 @@ const generateInitialClasses = (): ClassSection[] => {
 
   // Generate for all academic periods as requested
   const periods = [
+    { year: 2024, semester: 2 },
+    { year: 2025, semester: 1 },
+    { year: 2025, semester: 2 },
     { year: 2026, semester: 1 },
     { year: 2026, semester: 2 },
     { year: 2027, semester: 1 },
@@ -249,8 +253,7 @@ const generateInitialClasses = (): ClassSection[] => {
 
 export const initialClasses = generateInitialClasses();
 
-// Completely Clean of demo student grades. All start empty!
-export const initialGrades: GradeRecord[] = [];
+export { initialGrades };
 
 // Completely Clean of attendance sessions. All start empty!
 export const generateInitialAttendance = (): AttendanceSession[] => [];

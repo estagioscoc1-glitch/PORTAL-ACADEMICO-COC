@@ -498,7 +498,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Ensure we have the correct up-to-date localStorage schema. Wipes old versions once.
-  if (typeof window !== 'undefined' && safeLocalStorage.getItem('oc_ls_version') !== 'v8') {
+  if (typeof window !== 'undefined' && safeLocalStorage.getItem('oc_ls_version') !== 'v9') {
     const keysToRemove: string[] = [];
     for (let i = 0; i < safeLocalStorage.length; i++) {
       const key = safeLocalStorage.key(i);
@@ -507,7 +507,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
     keysToRemove.forEach(k => safeLocalStorage.removeItem(k));
-    safeLocalStorage.setItem('oc_ls_version', 'v8');
+    safeLocalStorage.setItem('oc_ls_version', 'v9');
   }
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -549,7 +549,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [users, setUsers] = useState<User[]>(() => {
     const val = safeJsonParse(safeLocalStorage.getItem('oc_users'), initialUsers);
     const baseList = (val && Array.isArray(val) && val.length > 0) ? val : initialUsers;
-    return baseList;
+    const userMap = new Map<string, User>();
+    initialUsers.forEach(u => userMap.set(u.id, u));
+    if (Array.isArray(baseList)) {
+      baseList.forEach(u => userMap.set(u.id, u));
+    }
+    return Array.from(userMap.values()).map(u => {
+      if (u.role === UserRole.STUDENT && !u.classId) {
+        return { ...u, classId: 'class_enf_m1_matutino' };
+      }
+      return u;
+    });
   });
 
   const [courses, setCourses] = useState<Course[]>(() => {
@@ -569,7 +579,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [grades, setGrades] = useState<GradeRecord[]>(() => {
     const val = safeJsonParse(safeLocalStorage.getItem('oc_grades'), initialGrades);
-    return (val && Array.isArray(val)) ? val : initialGrades;
+    const baseList = (val && Array.isArray(val) && val.length > 0) ? val : initialGrades;
+    const gradeMap = new Map<string, GradeRecord>();
+    initialGrades.forEach(g => gradeMap.set(g.id, g));
+    if (Array.isArray(baseList)) {
+      baseList.forEach(g => gradeMap.set(g.id, g));
+    }
+    return Array.from(gradeMap.values());
   });
 
   const [attendance, setAttendance] = useState<AttendanceSession[]>(() => {
@@ -637,7 +653,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [periods, setPeriods] = useState<string[]>(() => {
-    return safeJsonParse(safeLocalStorage.getItem('oc_periods'), ['2026/1', '2026/2', '2027/1', '2027/2', '2028/1', '2028/2']);
+    return safeJsonParse(safeLocalStorage.getItem('oc_periods'), ['2024/2', '2025/1', '2025/2', '2026/1', '2026/2', '2027/1', '2027/2', '2028/1', '2028/2']);
   });
 
   const [activeClassId, setActiveClassId] = useState<string | null>(() => {
@@ -772,7 +788,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           const currentState = latestStateRef.current;
 
-          const healedUsersFromCloud = state.users !== undefined ? state.users : currentState.users;
+          const rawCloudUsers = state.users !== undefined ? state.users : currentState.users;
+          const userMap = new Map<string, User>();
+          initialUsers.forEach(u => userMap.set(u.id, u));
+          if (Array.isArray(rawCloudUsers)) {
+            rawCloudUsers.forEach(u => userMap.set(u.id, u));
+          }
+          const healedUsersFromCloud = Array.from(userMap.values()).map(u => {
+            if (u.role === UserRole.STUDENT && !u.classId) {
+              return { ...u, classId: 'class_enf_m1_matutino' };
+            }
+            return u;
+          });
 
           // Build comparison payload (exclude transient states/security logs from matching block)
           const receivedPayload = {
@@ -852,11 +879,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } finally {
         // Enforce post-load validation on the final states to protect against empty/null databases
         setUsers(prev => {
-          if (!prev || !Array.isArray(prev) || prev.length === 0) {
-            console.warn('[postLoadDefense] Coleção de usuários inválida ou nula, restaurando padrão.');
-            return initialUsers;
+          const userMap = new Map<string, User>();
+          initialUsers.forEach(u => userMap.set(u.id, u));
+          if (Array.isArray(prev)) {
+            prev.forEach(u => userMap.set(u.id, u));
           }
-          return prev;
+          return Array.from(userMap.values()).map(u => {
+            if (u.role === UserRole.STUDENT && !u.classId) {
+              return { ...u, classId: 'class_enf_m1_matutino' };
+            }
+            return u;
+          });
         });
         setClasses(prev => {
           if (!prev || !Array.isArray(prev) || prev.length === 0) {
@@ -866,11 +899,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return prev;
         });
         setGrades(prev => {
-          if (!prev || !Array.isArray(prev)) {
-            console.warn('[postLoadDefense] Coleção de notas inválida ou nula, restaurando padrão.');
-            return initialGrades;
+          const gradeMap = new Map<string, GradeRecord>();
+          initialGrades.forEach(g => gradeMap.set(g.id, g));
+          if (Array.isArray(prev)) {
+            prev.forEach(g => gradeMap.set(g.id, g));
           }
-          return prev;
+          return Array.from(gradeMap.values());
         });
         // Graceful delay to prevent flickering on ultra-fast loads
         setTimeout(() => {
@@ -896,7 +930,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (isQuota) {
         console.error('Cota do Firestore esgotada:', err);
         setCloudBackupStatus('quota_exceeded');
-        addSecurityLog('SINC_NUVEM_COTA', 'Limite de cota de leitura/escrita diária do Firestore atingido.', 'medium');
+        addSecurityLog('SINC_NUVEM_COTA', 'Limite de cota de leitura/escrita diária do Firestore atingido. Operando em modo LocalStorage resguardado.', 'medium');
       } else if (isOffline) {
         console.warn('Portal acadêmico operando em modo offline-first (Firestore indisponível).');
         setCloudBackupStatus('offline');
@@ -906,6 +940,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCloudBackupStatus('error');
         addSecurityLog('SINC_NUVEM_FALHA', 'Falha na conexão de escuta do banco em nuvem.', 'medium');
       }
+      setHasReceivedInitialCloudSync(true);
       setIsLoading(false);
     });
 
@@ -2477,6 +2512,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (student) {
                 studentId = student.id;
                 studentsRecognized++;
+                if (!student.classId || student.classId !== classSection!.id) {
+                  student.classId = classSection!.id;
+                }
               } else {
                 studentId = `std_hist_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
                 

@@ -74,21 +74,21 @@ export interface GradeRecord {
   classId: string;
   studentId: string;
   // S1 evaluations
-  av1: number | null;
-  av2: number | null;
-  av3: number | null;
-  recS1: number | null;
+  av1?: number | null;
+  av2?: number | null;
+  av3?: number | null;
+  recS1?: number | null;
   s1: number; // S1 calculated
   // S2 evaluations
-  av4: number | null;
-  av5: number | null;
-  av6: number | null;
-  recS2: number | null;
+  av4?: number | null;
+  av5?: number | null;
+  av6?: number | null;
+  recS2?: number | null;
   s2: number; // S2 calculated
   
-  extra: number | null; // EX
-  conselho: number | null; // CS
-  afc: number | null; // AFC (Avaliação Final de Competência)
+  extra?: number | null; // EX
+  conselho?: number | null; // CS
+  afc?: number | null; // AFC (Avaliação Final de Competência)
   pf: number; // Pontuação Final calculated
   concept: string; // A, B, C, D, etc.
   result: 'APTO' | 'NÃO APTO' | 'F. NOTA' | 'REP. FALTAS' | 'Pendente';
