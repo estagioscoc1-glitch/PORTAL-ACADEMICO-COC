@@ -7,12 +7,13 @@ import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
   UploadCloud, Sparkles, AlertTriangle, CheckCircle2, 
-  ChevronDown, ChevronUp, Database, Undo2
+  ChevronDown, ChevronUp, Database, Wrench
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import type { DataRepairSummary } from '../context/AppContext';
 
 export const HistoricalDataImporter: React.FC = () => {
-  const { importHistoricalData, undoHistoricalImports } = useApp();
+  const { importHistoricalData, repairDuplicateImports } = useApp();
   const [jsonInput, setJsonInput] = useState('');
   const [fileError, setFileError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -25,11 +26,8 @@ export const HistoricalDataImporter: React.FC = () => {
     studentsRecognized: number;
     gradesImported: number;
   } | null>(null);
-  const [undoSummary, setUndoSummary] = useState<{
-    classesRemoved: number;
-    studentsRemoved: number;
-    gradesRemoved: number;
-  } | null>(null);
+  const [isRepairing, setIsRepairing] = useState(false);
+  const [repairResult, setRepairResult] = useState<DataRepairSummary | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -37,13 +35,11 @@ export const HistoricalDataImporter: React.FC = () => {
     setJsonInput(e.target.value);
     setFileError(null);
     setImportResult(null);
-    setUndoSummary(null);
   };
 
   const processImport = () => {
     setFileError(null);
     setImportResult(null);
-    setUndoSummary(null);
 
     if (!jsonInput.trim()) {
       setFileError('Por favor, cole o JSON ou faça upload de um arquivo.');
@@ -60,14 +56,16 @@ export const HistoricalDataImporter: React.FC = () => {
     }
   };
 
-  const handleUndoImport = () => {
-    if (!window.confirm('Tem certeza de que deseja remover todas as turmas históricas importadas (closedDefinitive: true), suas notas e alunos vinculados exclusivamente a elas?')) {
-      return;
-    }
-    setFileError(null);
-    setImportResult(null);
-    const summary = undoHistoricalImports();
-    setUndoSummary(summary);
+  const handleRepair = () => {
+    setIsRepairing(true);
+    setRepairResult(null);
+    // setTimeout gives the "Verificando..." state a chance to paint before the (synchronous)
+    // repair runs, so the button doesn't feel unresponsive on a large dataset.
+    setTimeout(() => {
+      const result = repairDuplicateImports();
+      setRepairResult(result);
+      setIsRepairing(false);
+    }, 50);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -289,46 +287,8 @@ export const HistoricalDataImporter: React.FC = () => {
         </motion.div>
       )}
 
-      {undoSummary && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="p-4 mb-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-900/30 text-xs"
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <CheckCircle2 className="h-5 w-5 text-amber-600 flex-shrink-0" />
-            <span className="font-bold text-sm">Importações Históricas Desfeitas com Sucesso!</span>
-          </div>
-          <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
-            Todas as turmas com fechamento definitivo (closedDefinitive: true), suas notas e os alunos associados exclusivamente a elas foram removidos.
-          </p>
-          <div className="grid grid-cols-3 gap-2.5 mt-2 bg-white/40 dark:bg-slate-900/40 p-3 rounded-lg border border-amber-200/30 font-semibold text-slate-700 dark:text-slate-300">
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase tracking-wider">Turmas Removidas</p>
-              <p className="text-sm font-bold text-slate-800 dark:text-amber-400">{undoSummary.classesRemoved}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase tracking-wider">Alunos Removidos</p>
-              <p className="text-sm font-bold text-slate-800 dark:text-amber-400">{undoSummary.studentsRemoved}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase tracking-wider">Notas Removidas</p>
-              <p className="text-sm font-bold text-slate-800 dark:text-amber-400">{undoSummary.gradesRemoved}</p>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
       {/* Actions */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <button
-          onClick={handleUndoImport}
-          className="flex items-center gap-1.5 px-4 py-2.5 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 font-bold rounded-xl text-xs border border-rose-200 dark:border-rose-800 active:scale-[0.98] transition-all cursor-pointer uppercase tracking-wider"
-        >
-          <Undo2 className="h-4 w-4 text-rose-500" />
-          <span>Desfazer Importações Históricas</span>
-        </button>
-
+      <div className="flex justify-end">
         <button
           onClick={processImport}
           className="flex items-center gap-1.5 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-black rounded-xl text-xs shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition-all cursor-pointer uppercase tracking-wider border-b-2 border-emerald-600"
@@ -336,6 +296,67 @@ export const HistoricalDataImporter: React.FC = () => {
           <UploadCloud className="h-4 w-4" />
           <span>Processar Importação Histórica</span>
         </button>
+      </div>
+
+      {/* Diagnóstico e Reparo de Duplicatas */}
+      <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800">
+        <div className="flex items-center gap-2.5 mb-2">
+          <Wrench className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <h4 className="text-sm font-bold text-slate-800 dark:text-white">Diagnóstico e Reparo de Duplicatas</h4>
+        </div>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3 leading-relaxed">
+          Se um aluno tem uma nota que aparece como "faltando" mesmo estando preenchida no mapa, ou se uma turma
+          importada não aparece no Diário/Boletim, geralmente é porque uma importação anterior criou uma turma,
+          disciplina ou aluno duplicado (por pequenas diferenças de acentuação/espaçamento entre arquivos). Esta
+          ferramenta encontra essas duplicatas e funde tudo no registro correto — nenhuma nota é apagada.
+        </p>
+
+        {repairResult && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={`p-3 mb-3 rounded-xl text-xs border ${
+              repairResult.classesMerged || repairResult.subjectsMerged || repairResult.studentsMerged
+                ? 'bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-400 border-amber-150 dark:border-amber-900/30'
+                : 'bg-slate-50 dark:bg-slate-950/20 text-slate-600 dark:text-slate-400 border-slate-150 dark:border-slate-800'
+            }`}
+          >
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-2 font-semibold">
+              <div>
+                <p className="text-[10px] opacity-60 uppercase tracking-wider">Turmas Fundidas</p>
+                <p className="text-sm font-bold">{repairResult.classesMerged}</p>
+              </div>
+              <div>
+                <p className="text-[10px] opacity-60 uppercase tracking-wider">Disciplinas Fundidas</p>
+                <p className="text-sm font-bold">{repairResult.subjectsMerged}</p>
+              </div>
+              <div>
+                <p className="text-[10px] opacity-60 uppercase tracking-wider">Alunos Fundidos</p>
+                <p className="text-sm font-bold">{repairResult.studentsMerged}</p>
+              </div>
+              <div>
+                <p className="text-[10px] opacity-60 uppercase tracking-wider">Notas Realocadas</p>
+                <p className="text-sm font-bold">{repairResult.gradesReattached}</p>
+              </div>
+            </div>
+            {repairResult.details.length > 0 && (
+              <ul className="list-disc list-inside space-y-0.5 max-h-40 overflow-y-auto text-[11px] opacity-90">
+                {repairResult.details.map((d, i) => <li key={i}>{d}</li>)}
+              </ul>
+            )}
+          </motion.div>
+        )}
+
+        <div className="flex justify-end">
+          <button
+            onClick={handleRepair}
+            disabled={isRepairing}
+            className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 disabled:cursor-wait text-white font-bold rounded-xl text-xs shadow-sm active:scale-[0.98] transition-all cursor-pointer uppercase tracking-wider"
+          >
+            <Wrench className="h-3.5 w-3.5" />
+            <span>{isRepairing ? 'Verificando...' : 'Diagnosticar e Reparar Duplicatas'}</span>
+          </button>
+        </div>
       </div>
     </div>
   );
