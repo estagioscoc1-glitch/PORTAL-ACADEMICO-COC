@@ -92,6 +92,7 @@ export interface GradeRecord {
   pf: number; // Pontuação Final calculated
   concept: string; // A, B, C, D, etc.
   result: 'APTO' | 'NÃO APTO' | 'F. NOTA' | 'REP. FALTAS' | 'Pendente';
+  isHistoricalImport?: boolean;
 }
 
 export interface AttendanceSession {

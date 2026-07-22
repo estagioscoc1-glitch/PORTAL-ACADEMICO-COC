@@ -1156,6 +1156,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setGrades(prevGrades => {
       let changed = false;
       const updated = prevGrades.map(g => {
+        if (g.isHistoricalImport) {
+          return g;
+        }
         const { frequency } = getStudentAbsencesInternal(g.studentId, g.subjectId, g.classId, attendance, subjects);
         const newResult = getStudentResult(g, frequency);
         const newConcept = getStudentConcept(g.pf, conceptRanges);
@@ -1505,6 +1508,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const getStudentResult = (g: Partial<GradeRecord> & { pf?: number }, frequency?: number): 'APTO' | 'NÃO APTO' | 'F. NOTA' | 'REP. FALTAS' | 'Pendente' => {
+    if (g.isHistoricalImport && g.result) {
+      return g.result;
+    }
     if (g.result === 'REP. FALTAS') {
       return 'REP. FALTAS';
     }
@@ -2039,6 +2045,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             // Merge updates
             const merged = { ...g, ...updates };
             
+            if (merged.isHistoricalImport) {
+              const s1 = calculateS1(merged);
+              const s2 = calculateS2(merged);
+              const rawAfc = merged.afc;
+              const afcVal = rawAfc !== null && rawAfc !== undefined ? Math.min(40, rawAfc) : null;
+              const extra = merged.extra ?? 0;
+              const conselho = merged.conselho ?? 0;
+
+              const hasExplicitPf = updates.pf !== undefined;
+              const hasScoreChange = updates.s1 !== undefined || updates.s2 !== undefined || updates.afc !== undefined || updates.extra !== undefined || updates.conselho !== undefined || updates.av1 !== undefined || updates.av4 !== undefined;
+              const pf = hasExplicitPf ? updates.pf! : (hasScoreChange ? Math.min(100, s1 + s2 + (afcVal ?? 0) + extra + conselho) : merged.pf);
+
+              const concept = updates.concept !== undefined ? updates.concept : merged.concept;
+              const result = updates.result !== undefined ? updates.result : merged.result;
+
+              return {
+                ...merged,
+                afc: afcVal,
+                s1,
+                s2,
+                pf,
+                concept,
+                result
+              };
+            }
+
             // Calculate S1 & S2
             const s1 = calculateS1(merged);
             const s2 = calculateS2(merged);
@@ -2586,6 +2618,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 gradeRecord.pf = Number(pf);
                 gradeRecord.concept = concept || (Number(pf) >= 86 ? 'A' : (Number(pf) >= 76 ? 'B' : (Number(pf) >= 60 ? 'C' : 'D')));
                 gradeRecord.result = finalResult;
+                gradeRecord.isHistoricalImport = true;
               } else {
                 gradeRecord = {
                   id: `g_hist_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -2601,7 +2634,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   conselho: conselho !== null ? Number(conselho) : null,
                   pf: Number(pf),
                   concept: concept || (Number(pf) >= 86 ? 'A' : (Number(pf) >= 76 ? 'B' : (Number(pf) >= 60 ? 'C' : 'D'))),
-                  result: finalResult
+                  result: finalResult,
+                  isHistoricalImport: true
                 };
                 currentGrades.push(gradeRecord);
               }
