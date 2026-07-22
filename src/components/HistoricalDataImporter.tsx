@@ -7,12 +7,12 @@ import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
   UploadCloud, Sparkles, AlertTriangle, CheckCircle2, 
-  ChevronDown, ChevronUp, Database
+  ChevronDown, ChevronUp, Database, Undo2
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export const HistoricalDataImporter: React.FC = () => {
-  const { importHistoricalData } = useApp();
+  const { importHistoricalData, undoHistoricalImports } = useApp();
   const [jsonInput, setJsonInput] = useState('');
   const [fileError, setFileError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -25,6 +25,11 @@ export const HistoricalDataImporter: React.FC = () => {
     studentsRecognized: number;
     gradesImported: number;
   } | null>(null);
+  const [undoSummary, setUndoSummary] = useState<{
+    classesRemoved: number;
+    studentsRemoved: number;
+    gradesRemoved: number;
+  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -32,11 +37,13 @@ export const HistoricalDataImporter: React.FC = () => {
     setJsonInput(e.target.value);
     setFileError(null);
     setImportResult(null);
+    setUndoSummary(null);
   };
 
   const processImport = () => {
     setFileError(null);
     setImportResult(null);
+    setUndoSummary(null);
 
     if (!jsonInput.trim()) {
       setFileError('Por favor, cole o JSON ou faça upload de um arquivo.');
@@ -51,6 +58,16 @@ export const HistoricalDataImporter: React.FC = () => {
     } catch (err) {
       setFileError(`Erro ao processar JSON: ${(err as Error).message}`);
     }
+  };
+
+  const handleUndoImport = () => {
+    if (!window.confirm('Tem certeza de que deseja remover todas as turmas históricas importadas (closedDefinitive: true), suas notas e alunos vinculados exclusivamente a elas?')) {
+      return;
+    }
+    setFileError(null);
+    setImportResult(null);
+    const summary = undoHistoricalImports();
+    setUndoSummary(summary);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -272,8 +289,46 @@ export const HistoricalDataImporter: React.FC = () => {
         </motion.div>
       )}
 
+      {undoSummary && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="p-4 mb-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-900/30 text-xs"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <CheckCircle2 className="h-5 w-5 text-amber-600 flex-shrink-0" />
+            <span className="font-bold text-sm">Importações Históricas Desfeitas com Sucesso!</span>
+          </div>
+          <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
+            Todas as turmas com fechamento definitivo (closedDefinitive: true), suas notas e os alunos associados exclusivamente a elas foram removidos.
+          </p>
+          <div className="grid grid-cols-3 gap-2.5 mt-2 bg-white/40 dark:bg-slate-900/40 p-3 rounded-lg border border-amber-200/30 font-semibold text-slate-700 dark:text-slate-300">
+            <div>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider">Turmas Removidas</p>
+              <p className="text-sm font-bold text-slate-800 dark:text-amber-400">{undoSummary.classesRemoved}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider">Alunos Removidos</p>
+              <p className="text-sm font-bold text-slate-800 dark:text-amber-400">{undoSummary.studentsRemoved}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider">Notas Removidas</p>
+              <p className="text-sm font-bold text-slate-800 dark:text-amber-400">{undoSummary.gradesRemoved}</p>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* Actions */}
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <button
+          onClick={handleUndoImport}
+          className="flex items-center gap-1.5 px-4 py-2.5 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 font-bold rounded-xl text-xs border border-rose-200 dark:border-rose-800 active:scale-[0.98] transition-all cursor-pointer uppercase tracking-wider"
+        >
+          <Undo2 className="h-4 w-4 text-rose-500" />
+          <span>Desfazer Importações Históricas</span>
+        </button>
+
         <button
           onClick={processImport}
           className="flex items-center gap-1.5 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-black rounded-xl text-xs shadow-lg shadow-emerald-500/20 active:scale-[0.98] transition-all cursor-pointer uppercase tracking-wider border-b-2 border-emerald-600"

@@ -167,6 +167,7 @@ interface AppContextType {
   importSubjects: (subjectList: { name: string, workload: number }[], courseId: string, module: number) => void;
   importConcepts: (conceptList: ConceptRange[]) => void;
   importHistoricalData: (data: any) => HistoricalImportSummary;
+  undoHistoricalImports: () => { classesRemoved: number; studentsRemoved: number; gradesRemoved: number };
 
   // Security and Backups
   securityLogs: any[];
@@ -2647,6 +2648,76 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
+  const undoHistoricalImports = () => {
+    // 1. Identify all ClassSections with closedDefinitive: true (historical classes)
+    const historicalClasses = classes.filter(c => c.closedDefinitive === true);
+    if (historicalClasses.length === 0) {
+      return { classesRemoved: 0, studentsRemoved: 0, gradesRemoved: 0 };
+    }
+
+    const historicalClassIds = new Set(historicalClasses.map(c => c.id));
+
+    // 2. Remove all GradeRecords linked to these historical classes
+    const gradesToRemove = grades.filter(g => historicalClassIds.has(g.classId));
+    const gradesRemovedCount = gradesToRemove.length;
+    const newGrades = grades.filter(g => !historicalClassIds.has(g.classId));
+
+    // 3. Remove directAbsences keys containing these historical classIds
+    const newDirectAbsences = { ...directAbsences };
+    Object.keys(newDirectAbsences).forEach(key => {
+      let matches = false;
+      historicalClassIds.forEach(cId => {
+        if (key.includes(cId)) {
+          matches = true;
+        }
+      });
+      if (matches) {
+        delete newDirectAbsences[key];
+      }
+    });
+
+    // 4. Identify Users with role: STUDENT whose current classId is in historicalClassIds AND have no GradeRecord in newGrades
+    const studentsToRemove = users.filter(u => {
+      if (u.role !== UserRole.STUDENT) return false;
+      const isClassRemoved = u.classId ? historicalClassIds.has(u.classId) : false;
+      if (!isClassRemoved) return false;
+
+      const remainingGradesForStudent = newGrades.filter(g => g.studentId === u.id);
+      return remainingGradesForStudent.length === 0;
+    });
+
+    const studentIdsToRemove = new Set(studentsToRemove.map(u => u.id));
+    const studentsRemovedCount = studentIdsToRemove.size;
+
+    const newUsers = users.filter(u => !studentIdsToRemove.has(u.id));
+    const newClasses = classes.filter(c => !historicalClassIds.has(c.id));
+    const classesRemovedCount = historicalClasses.length;
+
+    // Update state
+    setClasses(newClasses);
+    setGrades(newGrades);
+    setDirectAbsences(newDirectAbsences);
+    setUsers(newUsers);
+
+    // Save to localStorage
+    safeLocalStorage.setItem('oc_classes', JSON.stringify(newClasses));
+    safeLocalStorage.setItem('oc_grades', JSON.stringify(newGrades));
+    safeLocalStorage.setItem('oc_direct_absences', JSON.stringify(newDirectAbsences));
+    safeLocalStorage.setItem('oc_users', JSON.stringify(newUsers));
+
+    addSecurityLog(
+      'DESFAZER_IMPORTACAO_HISTORICA',
+      `Importações históricas desfeitas: ${classesRemovedCount} turmas, ${studentsRemovedCount} alunos e ${gradesRemovedCount} notas removidos.`,
+      'high'
+    );
+
+    return {
+      classesRemoved: classesRemovedCount,
+      studentsRemoved: studentsRemovedCount,
+      gradesRemoved: gradesRemovedCount
+    };
+  };
+
   const updateDeclarationConfig = (type: 'escolaridade' | 'ctransp', fields: { startDate: string, endDate: string }) => {
     setDeclarationConfigs(prev => ({
       ...prev,
@@ -3344,7 +3415,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       directAbsences, updateStudentAbsences,
       toggleJournalStatus, sendMessage, addNotification, clearNotifications,
       getStudentAbsences, getStudentAttendanceGrid,
-      importStudents, importSubjects, importConcepts, importHistoricalData,
+      importStudents, importSubjects, importConcepts, importHistoricalData, undoHistoricalImports,
       securityLogs, cloudBackupStatus, lastCloudBackupTime,
       addSecurityLog, triggerLocalBackup, triggerCloudBackup,
       restoreFromBackup, restoreFromCloud, failedAttemptsMap, resetFailedAttempts,
