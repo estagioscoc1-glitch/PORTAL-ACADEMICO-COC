@@ -72,6 +72,14 @@ export interface HistoricalImportSummary {
   gradesImported: number;
 }
 
+export interface DataRepairSummary {
+  classesMerged: number;
+  subjectsMerged: number;
+  studentsMerged: number;
+  gradesReattached: number;
+  details: string[];
+}
+
 interface AppContextType {
   isLoading: boolean;
   currentUser: User | null;
@@ -167,7 +175,7 @@ interface AppContextType {
   importSubjects: (subjectList: { name: string, workload: number }[], courseId: string, module: number) => void;
   importConcepts: (conceptList: ConceptRange[]) => void;
   importHistoricalData: (data: any) => HistoricalImportSummary;
-  undoHistoricalImports: () => { classesRemoved: number; studentsRemoved: number; gradesRemoved: number };
+  repairDuplicateImports: () => DataRepairSummary;
 
   // Security and Backups
   securityLogs: any[];
@@ -499,7 +507,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Ensure we have the correct up-to-date localStorage schema. Wipes old versions once.
-  if (typeof window !== 'undefined' && safeLocalStorage.getItem('oc_ls_version') !== 'v9') {
+  if (typeof window !== 'undefined' && safeLocalStorage.getItem('oc_ls_version') !== 'v8') {
     const keysToRemove: string[] = [];
     for (let i = 0; i < safeLocalStorage.length; i++) {
       const key = safeLocalStorage.key(i);
@@ -508,7 +516,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
     keysToRemove.forEach(k => safeLocalStorage.removeItem(k));
-    safeLocalStorage.setItem('oc_ls_version', 'v9');
+    safeLocalStorage.setItem('oc_ls_version', 'v8');
   }
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -550,17 +558,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [users, setUsers] = useState<User[]>(() => {
     const val = safeJsonParse(safeLocalStorage.getItem('oc_users'), initialUsers);
     const baseList = (val && Array.isArray(val) && val.length > 0) ? val : initialUsers;
-    const userMap = new Map<string, User>();
-    initialUsers.forEach(u => userMap.set(u.id, u));
-    if (Array.isArray(baseList)) {
-      baseList.forEach(u => userMap.set(u.id, u));
-    }
-    return Array.from(userMap.values()).map(u => {
-      if (u.role === UserRole.STUDENT && !u.classId) {
-        return { ...u, classId: 'class_enf_m1_matutino' };
-      }
-      return u;
-    });
+    return baseList;
   });
 
   const [courses, setCourses] = useState<Course[]>(() => {
@@ -580,13 +578,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [grades, setGrades] = useState<GradeRecord[]>(() => {
     const val = safeJsonParse(safeLocalStorage.getItem('oc_grades'), initialGrades);
-    const baseList = (val && Array.isArray(val) && val.length > 0) ? val : initialGrades;
-    const gradeMap = new Map<string, GradeRecord>();
-    initialGrades.forEach(g => gradeMap.set(g.id, g));
-    if (Array.isArray(baseList)) {
-      baseList.forEach(g => gradeMap.set(g.id, g));
-    }
-    return Array.from(gradeMap.values());
+    return (val && Array.isArray(val)) ? val : initialGrades;
   });
 
   const [attendance, setAttendance] = useState<AttendanceSession[]>(() => {
@@ -654,7 +646,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [periods, setPeriods] = useState<string[]>(() => {
-    return safeJsonParse(safeLocalStorage.getItem('oc_periods'), ['2024/2', '2025/1', '2025/2', '2026/1', '2026/2', '2027/1', '2027/2', '2028/1', '2028/2']);
+    return safeJsonParse(safeLocalStorage.getItem('oc_periods'), ['2026/1', '2026/2', '2027/1', '2027/2', '2028/1', '2028/2']);
   });
 
   const [activeClassId, setActiveClassId] = useState<string | null>(() => {
@@ -789,18 +781,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           const currentState = latestStateRef.current;
 
-          const rawCloudUsers = state.users !== undefined ? state.users : currentState.users;
-          const userMap = new Map<string, User>();
-          initialUsers.forEach(u => userMap.set(u.id, u));
-          if (Array.isArray(rawCloudUsers)) {
-            rawCloudUsers.forEach(u => userMap.set(u.id, u));
-          }
-          const healedUsersFromCloud = Array.from(userMap.values()).map(u => {
-            if (u.role === UserRole.STUDENT && !u.classId) {
-              return { ...u, classId: 'class_enf_m1_matutino' };
-            }
-            return u;
-          });
+          const healedUsersFromCloud = state.users !== undefined ? state.users : currentState.users;
 
           // Build comparison payload (exclude transient states/security logs from matching block)
           const receivedPayload = {
@@ -880,17 +861,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } finally {
         // Enforce post-load validation on the final states to protect against empty/null databases
         setUsers(prev => {
-          const userMap = new Map<string, User>();
-          initialUsers.forEach(u => userMap.set(u.id, u));
-          if (Array.isArray(prev)) {
-            prev.forEach(u => userMap.set(u.id, u));
+          if (!prev || !Array.isArray(prev) || prev.length === 0) {
+            console.warn('[postLoadDefense] Coleção de usuários inválida ou nula, restaurando padrão.');
+            return initialUsers;
           }
-          return Array.from(userMap.values()).map(u => {
-            if (u.role === UserRole.STUDENT && !u.classId) {
-              return { ...u, classId: 'class_enf_m1_matutino' };
-            }
-            return u;
-          });
+          return prev;
         });
         setClasses(prev => {
           if (!prev || !Array.isArray(prev) || prev.length === 0) {
@@ -900,12 +875,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return prev;
         });
         setGrades(prev => {
-          const gradeMap = new Map<string, GradeRecord>();
-          initialGrades.forEach(g => gradeMap.set(g.id, g));
-          if (Array.isArray(prev)) {
-            prev.forEach(g => gradeMap.set(g.id, g));
+          if (!prev || !Array.isArray(prev)) {
+            console.warn('[postLoadDefense] Coleção de notas inválida ou nula, restaurando padrão.');
+            return initialGrades;
           }
-          return Array.from(gradeMap.values());
+          return prev;
         });
         // Graceful delay to prevent flickering on ultra-fast loads
         setTimeout(() => {
@@ -931,7 +905,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (isQuota) {
         console.error('Cota do Firestore esgotada:', err);
         setCloudBackupStatus('quota_exceeded');
-        addSecurityLog('SINC_NUVEM_COTA', 'Limite de cota de leitura/escrita diária do Firestore atingido. Operando em modo LocalStorage resguardado.', 'medium');
+        addSecurityLog('SINC_NUVEM_COTA', 'Limite de cota de leitura/escrita diária do Firestore atingido.', 'medium');
       } else if (isOffline) {
         console.warn('Portal acadêmico operando em modo offline-first (Firestore indisponível).');
         setCloudBackupStatus('offline');
@@ -941,7 +915,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCloudBackupStatus('error');
         addSecurityLog('SINC_NUVEM_FALHA', 'Falha na conexão de escuta do banco em nuvem.', 'medium');
       }
-      setHasReceivedInitialCloudSync(true);
       setIsLoading(false);
     });
 
@@ -1150,15 +1123,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 
 
-  // Recalculate grades whenever attendance or concept ranges or direct absences change
+  // Recalculate grades whenever attendance or concept ranges change
   useEffect(() => {
     // We update grades to match the attendance frequency automatically
     setGrades(prevGrades => {
       let changed = false;
       const updated = prevGrades.map(g => {
-        if (g.isHistoricalImport) {
-          return g;
-        }
         const { frequency } = getStudentAbsencesInternal(g.studentId, g.subjectId, g.classId, attendance, subjects);
         const newResult = getStudentResult(g, frequency);
         const newConcept = getStudentConcept(g.pf, conceptRanges);
@@ -1171,7 +1141,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       return changed ? updated : prevGrades;
     });
-  }, [attendance, conceptRanges, subjects, directAbsences]);
+  }, [attendance, conceptRanges, subjects]);
 
   // Absences Internal Helper
   const getStudentAbsencesInternal = (
@@ -1507,23 +1477,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return matched ? matched.letter : 'D';
   };
 
-  const getStudentResult = (g: Partial<GradeRecord> & { pf?: number }, frequency?: number): 'APTO' | 'NÃO APTO' | 'F. NOTA' | 'REP. FALTAS' | 'Pendente' => {
-    if (g.isHistoricalImport && g.result) {
-      return g.result;
-    }
-    if (g.result === 'REP. FALTAS') {
-      return 'REP. FALTAS';
-    }
-    const calcPf = (g.s1 || 0) + (g.s2 || 0) + (g.afc || 0) + (g.extra || 0) + (g.conselho || 0);
-    const totalScore = (g.pf !== undefined && g.pf !== null && g.pf > 0) ? g.pf : calcPf;
-
-    if (totalScore >= 60 || (g.result && String(g.result).toUpperCase().includes('APTO'))) {
-      return (g.result as any) || 'APTO';
-    }
-    if (totalScore > 0 || g.s1 !== null || g.s2 !== null || g.afc !== null) {
+  const getStudentResult = (g: Partial<GradeRecord> & { pf: number }, frequency: number): 'APTO' | 'NÃO APTO' | 'F. NOTA' | 'Pendente' => {
+    // If student was failed by attendance
+    if (frequency < 75) {
       return 'F. NOTA';
     }
-    return 'Pendente';
+    const totalScore = g.pf;
+    const isApproved = totalScore >= 60;
+    
+    if (isApproved) {
+      return 'APTO';
+    }
+    return 'NÃO APTO';
   };
 
   // Mutators
@@ -2045,32 +2010,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             // Merge updates
             const merged = { ...g, ...updates };
             
-            if (merged.isHistoricalImport) {
-              const s1 = calculateS1(merged);
-              const s2 = calculateS2(merged);
-              const rawAfc = merged.afc;
-              const afcVal = rawAfc !== null && rawAfc !== undefined ? Math.min(40, rawAfc) : null;
-              const extra = merged.extra ?? 0;
-              const conselho = merged.conselho ?? 0;
-
-              const hasExplicitPf = updates.pf !== undefined;
-              const hasScoreChange = updates.s1 !== undefined || updates.s2 !== undefined || updates.afc !== undefined || updates.extra !== undefined || updates.conselho !== undefined || updates.av1 !== undefined || updates.av4 !== undefined;
-              const pf = hasExplicitPf ? updates.pf! : (hasScoreChange ? Math.min(100, s1 + s2 + (afcVal ?? 0) + extra + conselho) : merged.pf);
-
-              const concept = updates.concept !== undefined ? updates.concept : merged.concept;
-              const result = updates.result !== undefined ? updates.result : merged.result;
-
-              return {
-                ...merged,
-                afc: afcVal,
-                s1,
-                s2,
-                pf,
-                concept,
-                result
-              };
-            }
-
             // Calculate S1 & S2
             const s1 = calculateS1(merged);
             const s2 = calculateS2(merged);
@@ -2088,7 +2027,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             // Result mapping based on attendance frequency
             const { frequency } = getStudentAbsences(merged.studentId, merged.subjectId, merged.classId);
-            const result = getStudentResult({ ...merged, pf }, frequency);
+            const result = getStudentResult({ pf, extra, conselho, afc: afcVal }, frequency);
 
             return {
               ...merged,
@@ -2136,7 +2075,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const pf = Math.min(100, s1 + s2 + (afcVal ?? 0) + extra + conselho);
         const concept = getStudentConcept(pf, conceptRanges);
         const { frequency } = getStudentAbsences(newRecord.studentId, newRecord.subjectId, newRecord.classId);
-        const result = getStudentResult({ ...newRecord, pf }, frequency);
+        const result = getStudentResult({ pf, extra, conselho, afc: afcVal }, frequency);
         return [...prev, {
           ...newRecord,
           afc: afcVal,
@@ -2451,12 +2390,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let currentGrades = [...grades];
     let currentPeriods = [...periods];
     let currentDirectAbsences = { ...directAbsences };
+    const recognizedStudentIds = new Set<string>();
+    const createdStudentIds = new Set<string>();
 
     jsonData.classes.forEach((clsItem: any) => {
       const { className, courseName, shift, module: clsModule, year, semester, subjects: clsSubjects } = clsItem;
 
       // 1. Course Check / Creation
-      let course = currentCourses.find(c => c.name.trim().toLowerCase() === courseName.trim().toLowerCase());
+      // NOTE: use cleanTextForSync (accent/whitespace/case-insensitive) instead of a plain
+      // trim+lowercase compare. Mapas convertidos de PDF frequentemente têm pequenas
+      // variações de acentuação/espaçamento entre arquivos para o mesmo curso/turma/disciplina,
+      // e uma comparação frágil aqui cria registros duplicados "fantasma".
+      let course = currentCourses.find(c => cleanTextForSync(c.name) === cleanTextForSync(courseName));
       if (!course) {
         course = {
           id: `crs_hist_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -2469,7 +2414,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // 2. ClassSection Check / Creation
       let classSection = currentClasses.find(c => 
-        c.name.trim().toLowerCase() === className.trim().toLowerCase() &&
+        cleanTextForSync(c.name) === cleanTextForSync(className) &&
         c.year === Number(year) &&
         c.semester === Number(semester) &&
         c.module === Number(clsModule)
@@ -2503,7 +2448,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clsSubjects.forEach((subItem: any) => {
           const { subjectName, records } = subItem;
           let subject = currentSubjects.find(s => 
-            s.name.trim().toLowerCase() === subjectName.trim().toLowerCase() &&
+            cleanTextForSync(s.name) === cleanTextForSync(subjectName) &&
             s.courseId === course!.id &&
             s.module === Number(clsModule)
           );
@@ -2533,20 +2478,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               }
 
               if (!student) {
-                const cleanName = (nameStr: string) => nameStr.trim().replace(/\s+/g, ' ').toLowerCase();
-                const cleanedTargetName = cleanName(studentName);
+                // Use the accent/whitespace-insensitive comparator here too, for the same
+                // reason as course/class/subject above: names converted from different PDF
+                // mapas can carry small accent/spacing differences for the same person.
+                const cleanedTargetName = cleanTextForSync(studentName);
                 student = currentUsers.find(u => 
                   u.role === UserRole.STUDENT && 
-                  cleanName(u.name) === cleanedTargetName
+                  cleanTextForSync(u.name) === cleanedTargetName
                 );
               }
 
               let studentId = '';
               if (student) {
                 studentId = student.id;
-                studentsRecognized++;
-                if (!student.classId || student.classId !== classSection!.id) {
-                  student.classId = classSection!.id;
+                // Count unique students only once, even though this record loop runs once per
+                // (student, subject) pair — otherwise "Alunos Reconhecidos"/"Novos Alunos" in the
+                // import summary double (or eleven-, or N-) counts each student per subject.
+                if (!recognizedStudentIds.has(studentId)) {
+                  recognizedStudentIds.add(studentId);
+                  studentsRecognized++;
                 }
               } else {
                 studentId = `std_hist_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -2572,55 +2522,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   enrollment: studentEnrollment && typeof studentEnrollment === 'string' && studentEnrollment.trim() !== '' ? studentEnrollment.trim() : undefined
                 };
                 currentUsers.push(student);
-                studentsCreated++;
+                if (!createdStudentIds.has(studentId)) {
+                  createdStudentIds.add(studentId);
+                  studentsCreated++;
+                }
               }
 
               // 6. GradeRecord Check / Creation / Update
-              let gradeRecord = currentGrades.find(g => 
+              const existingGradeIndex = currentGrades.findIndex(g => 
                 g.studentId === studentId &&
                 g.subjectId === subject!.id &&
                 g.classId === classSection!.id
               );
 
-              const rawFaltas = recItem.faltas ?? recItem.ftas ?? recItem.Ftas ?? recItem.totalFaltas ?? recItem.absences ?? 0;
-              const numFaltas = Number(rawFaltas || 0);
-              const subWorkload = subject?.workload || 80;
-              const calcFreq = subWorkload > 0 ? Math.max(0, ((subWorkload - numFaltas) / subWorkload) * 100) : 100;
-
-              const rawResultStr = String(result || '').trim().toUpperCase();
-              const isExplicitAbsenceFail = rawResultStr.includes('REP. FALTAS') || rawResultStr.includes('REPROVADO POR FALTA');
-
-              let finalResult: 'APTO' | 'NÃO APTO' | 'F. NOTA' | 'REP. FALTAS' | 'Pendente' = 'Pendente';
-              if (isExplicitAbsenceFail) {
-                finalResult = 'REP. FALTAS';
-              } else if (rawResultStr.includes('F. NOTA') || rawResultStr.includes('F.NOTA')) {
-                finalResult = 'F. NOTA';
-              } else if (rawResultStr.includes('NÃO APTO') || rawResultStr.includes('NAO APTO')) {
-                finalResult = 'NÃO APTO';
-              } else if (rawResultStr.includes('APTO')) {
-                finalResult = 'APTO';
-              } else if (Number(pf) >= 60) {
-                finalResult = 'APTO';
-              } else if (Number(pf) > 0) {
-                finalResult = 'NÃO APTO';
+              if (existingGradeIndex !== -1) {
+                // IMPORTANT: build a brand-new object instead of mutating the existing one in
+                // place. currentGrades is only a shallow copy of the previous `grades` state,
+                // so mutating a found record here would also mutate the object still referenced
+                // by the outgoing React state, which can cause stale/inconsistent renders.
+                currentGrades[existingGradeIndex] = {
+                  ...currentGrades[existingGradeIndex],
+                  av1: av1 !== null && av1 !== undefined ? Number(av1) : null,
+                  av4: av4 !== null && av4 !== undefined ? Number(av4) : null,
+                  s1: Number(s1),
+                  s2: Number(s2),
+                  afc: afc !== null ? Number(afc) : null,
+                  extra: extra !== null ? Number(extra) : null,
+                  conselho: conselho !== null ? Number(conselho) : null,
+                  pf: Number(pf),
+                  concept: concept || 'D',
+                  result: result as any || 'Pendente'
+                };
               } else {
-                finalResult = 'Pendente';
-              }
-
-              if (gradeRecord) {
-                gradeRecord.av1 = av1 !== null && av1 !== undefined ? Number(av1) : null;
-                gradeRecord.av4 = av4 !== null && av4 !== undefined ? Number(av4) : null;
-                gradeRecord.s1 = Number(s1);
-                gradeRecord.s2 = Number(s2);
-                gradeRecord.afc = afc !== null ? Number(afc) : null;
-                gradeRecord.extra = extra !== null ? Number(extra) : null;
-                gradeRecord.conselho = conselho !== null ? Number(conselho) : null;
-                gradeRecord.pf = Number(pf);
-                gradeRecord.concept = concept || (Number(pf) >= 86 ? 'A' : (Number(pf) >= 76 ? 'B' : (Number(pf) >= 60 ? 'C' : 'D')));
-                gradeRecord.result = finalResult;
-                gradeRecord.isHistoricalImport = true;
-              } else {
-                gradeRecord = {
+                const gradeRecord = {
                   id: `g_hist_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
                   studentId,
                   subjectId: subject!.id,
@@ -2633,9 +2567,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   extra: extra !== null ? Number(extra) : null,
                   conselho: conselho !== null ? Number(conselho) : null,
                   pf: Number(pf),
-                  concept: concept || (Number(pf) >= 86 ? 'A' : (Number(pf) >= 76 ? 'B' : (Number(pf) >= 60 ? 'C' : 'D'))),
-                  result: finalResult,
-                  isHistoricalImport: true
+                  concept: concept || 'D',
+                  result: result as any || 'Pendente'
                 };
                 currentGrades.push(gradeRecord);
               }
@@ -2643,7 +2576,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
               // 7. Absences Register
               const absenceKey = `${classSection!.id}_${subject!.id}_${studentId}`;
-              currentDirectAbsences[absenceKey] = numFaltas;
+              currentDirectAbsences[absenceKey] = Number(faltas || 0);
             });
           }
         });
@@ -2682,74 +2615,178 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
-  const undoHistoricalImports = () => {
-    // 1. Identify all ClassSections with closedDefinitive: true (historical classes)
-    const historicalClasses = classes.filter(c => c.closedDefinitive === true);
-    if (historicalClasses.length === 0) {
-      return { classesRemoved: 0, studentsRemoved: 0, gradesRemoved: 0 };
+  // Repara duplicatas de turmas/disciplinas/alunos criadas por importações históricas
+  // anteriores (antes da comparação de nomes ter sido corrigida para ignorar acentos e
+  // espaçamento). Nunca apaga notas: sempre funde o registro "fantasma" no oficial,
+  // movendo notas/faltas/matrículas de volta para o registro correto.
+  const repairDuplicateImports = (): DataRepairSummary => {
+    const details: string[] = [];
+    let gradesReattached = 0;
+
+    let currentClasses = [...classes];
+    let currentSubjects = [...subjects];
+    let currentUsers = [...users];
+    let currentGrades = [...grades];
+    let currentDirectAbsences: { [key: string]: number } = { ...directAbsences };
+
+    const countGradesFor = (predicate: (g: any) => boolean) => currentGrades.filter(predicate).length;
+
+    // Escolhe o registro "canônico" de um grupo de duplicatas. Prioridade:
+    // 1) um id que NÃO tenha sido criado por importação histórica (sem prefixo *_hist_/*_imp_)
+    //    — normalmente é o cadastro oficial/curricular, com nome limpo e metadados corretos;
+    // 2) em empate (ex.: duas duplicatas criadas por importações diferentes), o que tem mais
+    //    notas associadas, por ser o mais provável de estar realmente em uso.
+    // A contagem de notas NUNCA deve vencer sobre "é o registro oficial", senão o reparo
+    // mantém o id/nome "fantasma" só porque ele foi o que acumulou a nota por engano.
+    const pickCanonical = <T extends { id: string }>(group: T[], gradeCountFor: (item: T) => number): T => {
+      return [...group].sort((a, b) => {
+        const aHist = /_(hist|imp)_/.test(a.id) ? 1 : 0;
+        const bHist = /_(hist|imp)_/.test(b.id) ? 1 : 0;
+        if (aHist !== bHist) return aHist - bHist;
+        return gradeCountFor(b) - gradeCountFor(a);
+      })[0];
+    };
+
+    // --- 1. Turmas duplicadas (mesmo curso, ano, semestre, módulo e nome equivalente) ---
+    const classGroups = new Map<string, ClassSection[]>();
+    currentClasses.forEach(c => {
+      const key = `${c.courseId}|${c.year}|${c.semester}|${c.module}|${cleanTextForSync(c.name)}`;
+      if (!classGroups.has(key)) classGroups.set(key, []);
+      classGroups.get(key)!.push(c);
+    });
+
+    let classesMerged = 0;
+    classGroups.forEach(group => {
+      if (group.length < 2) return;
+      const canonical = pickCanonical(group, (c) => countGradesFor(g => g.classId === c.id));
+      group.forEach(dup => {
+        if (dup.id === canonical.id) return;
+        const movedGrades = currentGrades.filter(g => g.classId === dup.id).length;
+        currentGrades = currentGrades.map(g => g.classId === dup.id ? { ...g, classId: canonical.id } : g);
+        currentUsers = currentUsers.map(u => u.classId === dup.id ? { ...u, classId: canonical.id } : u);
+        Object.keys(currentDirectAbsences).forEach(key => {
+          if (key.startsWith(`${dup.id}_`)) {
+            const rest = key.slice(dup.id.length);
+            currentDirectAbsences[`${canonical.id}${rest}`] = currentDirectAbsences[key];
+            delete currentDirectAbsences[key];
+          }
+        });
+        currentClasses = currentClasses.filter(c => c.id !== dup.id);
+        gradesReattached += movedGrades;
+        classesMerged++;
+        details.push(`Turma duplicada "${dup.name}" (${dup.id}) fundida em "${canonical.name}" (${canonical.id}) — ${movedGrades} nota(s) e alunos realocados.`);
+      });
+    });
+
+    // --- 2. Disciplinas duplicadas (mesmo curso, módulo e nome equivalente) ---
+    const subjectGroups = new Map<string, Subject[]>();
+    currentSubjects.forEach(s => {
+      const key = `${s.courseId}|${s.module}|${cleanTextForSync(s.name)}`;
+      if (!subjectGroups.has(key)) subjectGroups.set(key, []);
+      subjectGroups.get(key)!.push(s);
+    });
+
+    let subjectsMerged = 0;
+    subjectGroups.forEach(group => {
+      if (group.length < 2) return;
+      const canonical = pickCanonical(group, (s) => countGradesFor(g => g.subjectId === s.id));
+      group.forEach(dup => {
+        if (dup.id === canonical.id) return;
+        const movedGrades = currentGrades.filter(g => g.subjectId === dup.id).length;
+        currentGrades = currentGrades.map(g => g.subjectId === dup.id ? { ...g, subjectId: canonical.id } : g);
+        Object.keys(currentDirectAbsences).forEach(key => {
+          if (key.includes(`_${dup.id}_`)) {
+            const newKey = key.replace(`_${dup.id}_`, `_${canonical.id}_`);
+            currentDirectAbsences[newKey] = currentDirectAbsences[key];
+            delete currentDirectAbsences[key];
+          }
+        });
+        currentSubjects = currentSubjects.filter(s => s.id !== dup.id);
+        gradesReattached += movedGrades;
+        subjectsMerged++;
+        details.push(`Disciplina duplicada "${dup.name}" (${dup.id}) fundida em "${canonical.name}" (${canonical.id}) — ${movedGrades} nota(s) realocadas.`);
+      });
+    });
+
+    // --- 3. Alunos duplicados (mesma matrícula, ou mesmo nome quando não há matrícula) ---
+    // Alunos usam uma regra própria de "quem é o canônico", diferente de turma/disciplina:
+    // - std_hist_*  → criado às pressas pelo importador de notas históricas quando não achou
+    //                 ninguém correspondente; é o candidato mais provável a ser o "fantasma".
+    // - std_imp_*   → criado pela importação da planilha oficial de alunos/matrículas
+    //                 (Alunos_e_Matriculas), já tem usuário/matrícula formais.
+    // - qualquer outro → cadastro manual/admin, o mais oficial de todos.
+    // Isso evita, por exemplo, apagar por engano a conta "oficial" de um aluno (com login já
+    // em uso) só porque a conta "fantasma" acumulou mais notas.
+    const studentTier = (id: string): number => {
+      if (id.startsWith('std_hist_')) return 2;
+      if (id.startsWith('std_imp_')) return 1;
+      return 0;
+    };
+    const pickCanonicalStudent = (group: User[]): User => {
+      return [...group].sort((a, b) => {
+        const tierDiff = studentTier(a.id) - studentTier(b.id);
+        if (tierDiff !== 0) return tierDiff;
+        const aHasEnrollment = a.enrollment && a.enrollment.trim() !== '' ? 0 : 1;
+        const bHasEnrollment = b.enrollment && b.enrollment.trim() !== '' ? 0 : 1;
+        if (aHasEnrollment !== bHasEnrollment) return aHasEnrollment - bHasEnrollment;
+        return countGradesFor(g => g.studentId === b.id) - countGradesFor(g => g.studentId === a.id);
+      })[0];
+    };
+
+    const studentGroups = new Map<string, User[]>();
+    currentUsers.filter(u => u.role === UserRole.STUDENT).forEach(u => {
+      const key = u.enrollment && u.enrollment.trim() !== ''
+        ? `enr:${u.enrollment.trim()}`
+        : `name:${cleanTextForSync(u.name)}`;
+      if (!studentGroups.has(key)) studentGroups.set(key, []);
+      studentGroups.get(key)!.push(u);
+    });
+
+    let studentsMerged = 0;
+    studentGroups.forEach(group => {
+      if (group.length < 2) return;
+      const canonical = pickCanonicalStudent(group);
+      group.forEach(dup => {
+        if (dup.id === canonical.id) return;
+        const movedGrades = currentGrades.filter(g => g.studentId === dup.id).length;
+        currentGrades = currentGrades.map(g => g.studentId === dup.id ? { ...g, studentId: canonical.id } : g);
+        Object.keys(currentDirectAbsences).forEach(key => {
+          if (key.endsWith(`_${dup.id}`)) {
+            const newKey = key.slice(0, -dup.id.length) + canonical.id;
+            currentDirectAbsences[newKey] = currentDirectAbsences[key];
+            delete currentDirectAbsences[key];
+          }
+        });
+        currentUsers = currentUsers.filter(u => u.id !== dup.id);
+        gradesReattached += movedGrades;
+        studentsMerged++;
+        details.push(`Aluno duplicado "${dup.name}" (${dup.id}) fundido em "${canonical.name}" (${canonical.id}) — ${movedGrades} nota(s) realocadas.`);
+      });
+    });
+
+    if (classesMerged || subjectsMerged || studentsMerged) {
+      setClasses(currentClasses);
+      setSubjects(currentSubjects);
+      setUsers(currentUsers);
+      setGrades(currentGrades);
+      setDirectAbsences(currentDirectAbsences);
+
+      safeLocalStorage.setItem('oc_classes', JSON.stringify(currentClasses));
+      safeLocalStorage.setItem('oc_subjects', JSON.stringify(currentSubjects));
+      safeLocalStorage.setItem('oc_users', JSON.stringify(currentUsers));
+      safeLocalStorage.setItem('oc_grades', JSON.stringify(currentGrades));
+      safeLocalStorage.setItem('oc_direct_absences', JSON.stringify(currentDirectAbsences));
+
+      addSecurityLog(
+        'REPARO_IMPORTACAO',
+        `Reparo de duplicatas: ${classesMerged} turma(s), ${subjectsMerged} disciplina(s), ${studentsMerged} aluno(s) fundidos, ${gradesReattached} nota(s) realocadas.`,
+        'medium'
+      );
+    } else {
+      details.push('Nenhuma duplicata encontrada.');
     }
 
-    const historicalClassIds = new Set(historicalClasses.map(c => c.id));
-
-    // 2. Remove all GradeRecords linked to these historical classes
-    const gradesToRemove = grades.filter(g => historicalClassIds.has(g.classId));
-    const gradesRemovedCount = gradesToRemove.length;
-    const newGrades = grades.filter(g => !historicalClassIds.has(g.classId));
-
-    // 3. Remove directAbsences keys containing these historical classIds
-    const newDirectAbsences = { ...directAbsences };
-    Object.keys(newDirectAbsences).forEach(key => {
-      let matches = false;
-      historicalClassIds.forEach(cId => {
-        if (key.includes(cId)) {
-          matches = true;
-        }
-      });
-      if (matches) {
-        delete newDirectAbsences[key];
-      }
-    });
-
-    // 4. Identify Users with role: STUDENT whose current classId is in historicalClassIds AND have no GradeRecord in newGrades
-    const studentsToRemove = users.filter(u => {
-      if (u.role !== UserRole.STUDENT) return false;
-      const isClassRemoved = u.classId ? historicalClassIds.has(u.classId) : false;
-      if (!isClassRemoved) return false;
-
-      const remainingGradesForStudent = newGrades.filter(g => g.studentId === u.id);
-      return remainingGradesForStudent.length === 0;
-    });
-
-    const studentIdsToRemove = new Set(studentsToRemove.map(u => u.id));
-    const studentsRemovedCount = studentIdsToRemove.size;
-
-    const newUsers = users.filter(u => !studentIdsToRemove.has(u.id));
-    const newClasses = classes.filter(c => !historicalClassIds.has(c.id));
-    const classesRemovedCount = historicalClasses.length;
-
-    // Update state
-    setClasses(newClasses);
-    setGrades(newGrades);
-    setDirectAbsences(newDirectAbsences);
-    setUsers(newUsers);
-
-    // Save to localStorage
-    safeLocalStorage.setItem('oc_classes', JSON.stringify(newClasses));
-    safeLocalStorage.setItem('oc_grades', JSON.stringify(newGrades));
-    safeLocalStorage.setItem('oc_direct_absences', JSON.stringify(newDirectAbsences));
-    safeLocalStorage.setItem('oc_users', JSON.stringify(newUsers));
-
-    addSecurityLog(
-      'DESFAZER_IMPORTACAO_HISTORICA',
-      `Importações históricas desfeitas: ${classesRemovedCount} turmas, ${studentsRemovedCount} alunos e ${gradesRemovedCount} notas removidos.`,
-      'high'
-    );
-
-    return {
-      classesRemoved: classesRemovedCount,
-      studentsRemoved: studentsRemovedCount,
-      gradesRemoved: gradesRemovedCount
-    };
+    return { classesMerged, subjectsMerged, studentsMerged, gradesReattached, details };
   };
 
   const updateDeclarationConfig = (type: 'escolaridade' | 'ctransp', fields: { startDate: string, endDate: string }) => {
@@ -3449,7 +3486,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       directAbsences, updateStudentAbsences,
       toggleJournalStatus, sendMessage, addNotification, clearNotifications,
       getStudentAbsences, getStudentAttendanceGrid,
-      importStudents, importSubjects, importConcepts, importHistoricalData, undoHistoricalImports,
+      importStudents, importSubjects, importConcepts, importHistoricalData, repairDuplicateImports,
       securityLogs, cloudBackupStatus, lastCloudBackupTime,
       addSecurityLog, triggerLocalBackup, triggerCloudBackup,
       restoreFromBackup, restoreFromCloud, failedAttemptsMap, resetFailedAttempts,
