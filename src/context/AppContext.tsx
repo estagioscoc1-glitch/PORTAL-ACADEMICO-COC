@@ -176,6 +176,7 @@ interface AppContextType {
   importConcepts: (conceptList: ConceptRange[]) => void;
   importHistoricalData: (data: any) => HistoricalImportSummary;
   repairDuplicateImports: () => DataRepairSummary;
+  undoHistoricalImports: () => { removedClassesCount: number; removedStudentsCount: number; removedGradesCount: number };
 
   // Security and Backups
   securityLogs: any[];
@@ -2866,6 +2867,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { classesMerged, subjectsMerged, studentsMerged, gradesReattached, details };
   };
 
+  const undoHistoricalImports = (): { removedClassesCount: number; removedStudentsCount: number; removedGradesCount: number } => {
+    // 1. Identificar todas as ClassSection com closedDefinitive: true (exclusivas das turmas históricas)
+    const historicalClasses = classes.filter(c => c.closedDefinitive === true);
+    const historicalClassIds = new Set(historicalClasses.map(c => c.id));
+    const removedClassesCount = historicalClasses.length;
+
+    // 2. Remover todos os GradeRecord vinculados a essas turmas
+    const initialGradesCount = grades.length;
+    const remainingGrades = grades.filter(g => !historicalClassIds.has(g.classId));
+    const removedGradesCount = initialGradesCount - remainingGrades.length;
+
+    // 3. Remover chaves de directAbsences que contenham o classId de turmas históricas
+    const remainingDirectAbsences: { [key: string]: number } = { ...directAbsences };
+    Object.keys(remainingDirectAbsences).forEach(key => {
+      const classId = key.split('_')[0];
+      if (historicalClassIds.has(classId)) {
+        delete remainingDirectAbsences[key];
+      }
+    });
+
+    // 4. Remover as turmas históricas da lista de turmas
+    const remainingClasses = classes.filter(c => !historicalClassIds.has(c.id));
+
+    // 5. Remover alunos (User role: STUDENT) que só tinham vínculo com essas turmas históricas
+    const initialUsersCount = users.length;
+    const remainingUsers = users.filter(user => {
+      if (user.role !== UserRole.STUDENT) {
+        return true; // Preserva administradores, professores, etc.
+      }
+      const isLinkedToHistoricalClass = user.classId ? historicalClassIds.has(user.classId) : false;
+      const hasRemainingGradesOutside = remainingGrades.some(g => g.studentId === user.id);
+
+      // Se a turma atual dele for uma das turmas históricas removidas E ele não tiver nenhuma outra nota fora delas:
+      if (isLinkedToHistoricalClass && !hasRemainingGradesOutside) {
+        return false; // Remove o usuário
+      }
+      return true; // Mantém o usuário
+    });
+    const removedStudentsCount = initialUsersCount - remainingUsers.length;
+
+    // 6. Atualizar os estados do sistema e o localStorage
+    setClasses(remainingClasses);
+    setGrades(remainingGrades);
+    setUsers(remainingUsers);
+    setDirectAbsences(remainingDirectAbsences);
+
+    safeLocalStorage.setItem('oc_classes', JSON.stringify(remainingClasses));
+    safeLocalStorage.setItem('oc_grades', JSON.stringify(remainingGrades));
+    safeLocalStorage.setItem('oc_users', JSON.stringify(remainingUsers));
+    safeLocalStorage.setItem('oc_direct_absences', JSON.stringify(remainingDirectAbsences));
+
+    addSecurityLog(
+      'DESFAZER_IMPORTACAO_HISTORICA',
+      `Remoção de importações históricas realizada: ${removedClassesCount} turma(s), ${removedStudentsCount} aluno(s) e ${removedGradesCount} nota(s) removidas.`,
+      'medium'
+    );
+
+    return {
+      removedClassesCount,
+      removedStudentsCount,
+      removedGradesCount
+    };
+  };
+
   const updateDeclarationConfig = (type: 'escolaridade' | 'ctransp', fields: { startDate: string, endDate: string }) => {
     setDeclarationConfigs(prev => ({
       ...prev,
@@ -3563,7 +3628,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       directAbsences, updateStudentAbsences,
       toggleJournalStatus, sendMessage, addNotification, clearNotifications,
       getStudentAbsences, getStudentAttendanceGrid,
-      importStudents, importSubjects, importConcepts, importHistoricalData, repairDuplicateImports,
+      importStudents, importSubjects, importConcepts, importHistoricalData, repairDuplicateImports, undoHistoricalImports,
       securityLogs, cloudBackupStatus, lastCloudBackupTime,
       addSecurityLog, triggerLocalBackup, triggerCloudBackup,
       restoreFromBackup, restoreFromCloud, failedAttemptsMap, resetFailedAttempts,

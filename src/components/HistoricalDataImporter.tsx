@@ -7,13 +7,13 @@ import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
   UploadCloud, Sparkles, AlertTriangle, CheckCircle2, 
-  ChevronDown, ChevronUp, Database, Wrench
+  ChevronDown, ChevronUp, Database, Wrench, Trash2
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { DataRepairSummary } from '../context/AppContext';
 
 export const HistoricalDataImporter: React.FC = () => {
-  const { importHistoricalData, repairDuplicateImports } = useApp();
+  const { importHistoricalData, repairDuplicateImports, undoHistoricalImports } = useApp();
   const [jsonInput, setJsonInput] = useState('');
   const [fileError, setFileError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -28,6 +28,12 @@ export const HistoricalDataImporter: React.FC = () => {
   } | null>(null);
   const [isRepairing, setIsRepairing] = useState(false);
   const [repairResult, setRepairResult] = useState<DataRepairSummary | null>(null);
+  const [isUndoing, setIsUndoing] = useState(false);
+  const [undoResult, setUndoResult] = useState<{
+    removedClassesCount: number;
+    removedStudentsCount: number;
+    removedGradesCount: number;
+  } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -59,13 +65,23 @@ export const HistoricalDataImporter: React.FC = () => {
   const handleRepair = () => {
     setIsRepairing(true);
     setRepairResult(null);
-    // setTimeout gives the "Verificando..." state a chance to paint before the (synchronous)
-    // repair runs, so the button doesn't feel unresponsive on a large dataset.
     setTimeout(() => {
       const result = repairDuplicateImports();
       setRepairResult(result);
       setIsRepairing(false);
     }, 50);
+  };
+
+  const handleUndo = () => {
+    if (window.confirm('Tem certeza que deseja remover todas as turmas históricas (fechadas definitivamente), suas notas e alunos vinculados exclusivamente a elas?')) {
+      setIsUndoing(true);
+      setUndoResult(null);
+      setTimeout(() => {
+        const result = undoHistoricalImports();
+        setUndoResult(result);
+        setIsUndoing(false);
+      }, 50);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -355,6 +371,51 @@ export const HistoricalDataImporter: React.FC = () => {
           >
             <Wrench className="h-3.5 w-3.5" />
             <span>{isRepairing ? 'Verificando...' : 'Diagnosticar e Reparar Duplicatas'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Desfazer Importações Históricas */}
+      <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800">
+        <div className="flex items-center gap-2.5 mb-2">
+          <Trash2 className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+          <h4 className="text-sm font-bold text-slate-800 dark:text-white">Desfazer Importações Históricas</h4>
+        </div>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3 leading-relaxed">
+          Remove com segurança todas as turmas históricas importadas (com fechamento definitivo), eliminando as notas vinculadas, faltas diretas e os alunos que possuem vínculo exclusivo com essas turmas. Não altera turmas, alunos ou disciplinas normais.
+        </p>
+
+        {undoResult && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="p-3 mb-3 rounded-xl text-xs border bg-rose-50 dark:bg-rose-950/20 text-rose-800 dark:text-rose-400 border-rose-150 dark:border-rose-900/30 font-semibold"
+          >
+            <div className="grid grid-cols-3 gap-2.5">
+              <div>
+                <p className="text-[10px] opacity-70 uppercase tracking-wider">Turmas Removidas</p>
+                <p className="text-sm font-bold">{undoResult.removedClassesCount}</p>
+              </div>
+              <div>
+                <p className="text-[10px] opacity-70 uppercase tracking-wider">Alunos Removidos</p>
+                <p className="text-sm font-bold">{undoResult.removedStudentsCount}</p>
+              </div>
+              <div>
+                <p className="text-[10px] opacity-70 uppercase tracking-wider">Notas Removidas</p>
+                <p className="text-sm font-bold">{undoResult.removedGradesCount}</p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        <div className="flex justify-end">
+          <button
+            onClick={handleUndo}
+            disabled={isUndoing}
+            className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 disabled:cursor-wait text-white font-bold rounded-xl text-xs shadow-sm active:scale-[0.98] transition-all cursor-pointer uppercase tracking-wider"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            <span>{isUndoing ? 'Removendo...' : 'Desfazer Importações Históricas'}</span>
           </button>
         </div>
       </div>
