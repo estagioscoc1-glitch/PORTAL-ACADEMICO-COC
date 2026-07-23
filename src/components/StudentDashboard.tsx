@@ -291,7 +291,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                                   ? 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400'
                                   : 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400'
                             }`}>
-                              {score ? score.result : 'Pendente'}
+                              {score ? (score.result === 'F. NOTA' ? 'REP. FALTAS' : score.result) : 'Pendente'}
                             </span>
                           </td>
                         </tr>
@@ -815,7 +815,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                                             ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' 
                                             : 'bg-red-500/10 text-red-600 dark:text-red-400'
                                         }`}>
-                                          {score ? score.result : 'Pendente'}
+                                          {score ? (score.result === 'F. NOTA' ? 'REP. FALTAS' : score.result) : 'Pendente'}
                                         </span>
                                       </td>
                                     </tr>

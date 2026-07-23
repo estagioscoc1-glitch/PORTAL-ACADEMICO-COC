@@ -558,7 +558,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [users, setUsers] = useState<User[]>(() => {
     const val = safeJsonParse(safeLocalStorage.getItem('oc_users'), initialUsers);
     const baseList = (val && Array.isArray(val) && val.length > 0) ? val : initialUsers;
-    return baseList;
+    const validInitialIds = new Set(initialUsers.map(u => u.id));
+    // Keep admin, users registered directly by the user, and initialUsers (like Aluno Teste). Filter out obsolete std_ imported students.
+    const filtered = baseList.filter(u => u.role !== UserRole.STUDENT || validInitialIds.has(u.id) || (!u.id.startsWith('std_25') && !u.id.startsWith('std_21') && !u.id.startsWith('std_22') && !u.id.startsWith('std_23')));
+    const existingIds = new Set(filtered.map(u => u.id));
+    const missingUsers = initialUsers.filter(u => !existingIds.has(u.id));
+    const result = missingUsers.length > 0 ? [...filtered, ...missingUsers] : filtered;
+    safeLocalStorage.setItem('oc_users', JSON.stringify(result));
+    return result;
   });
 
   const [courses, setCourses] = useState<Course[]>(() => {
@@ -781,7 +788,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           const currentState = latestStateRef.current;
 
-          const healedUsersFromCloud = state.users !== undefined ? state.users : currentState.users;
+          const rawUsersFromCloud = state.users !== undefined ? state.users : currentState.users;
+          const validInitialIds = new Set(initialUsers.map(u => u.id));
+          const cleanedCloudUsers = (rawUsersFromCloud || []).filter((u: User) => u.role !== UserRole.STUDENT || validInitialIds.has(u.id) || (!u.id.startsWith('std_25') && !u.id.startsWith('std_21') && !u.id.startsWith('std_22') && !u.id.startsWith('std_23')));
+          const cloudUserIds = new Set(cleanedCloudUsers.map((u: User) => u.id));
+          const missingInitialUsers = initialUsers.filter(u => !cloudUserIds.has(u.id));
+          const healedUsersFromCloud = missingInitialUsers.length > 0
+            ? [...cleanedCloudUsers, ...missingInitialUsers]
+            : cleanedCloudUsers;
 
           // Build comparison payload (exclude transient states/security logs from matching block)
           const receivedPayload = {
@@ -865,7 +879,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             console.warn('[postLoadDefense] Coleção de usuários inválida ou nula, restaurando padrão.');
             return initialUsers;
           }
-          return prev;
+          const validInitialIds = new Set(initialUsers.map(u => u.id));
+          const cleaned = prev.filter(u => u.role !== UserRole.STUDENT || validInitialIds.has(u.id) || (!u.id.startsWith('std_25') && !u.id.startsWith('std_21') && !u.id.startsWith('std_22') && !u.id.startsWith('std_23')));
+          const existingIds = new Set(cleaned.map(u => u.id));
+          const missingUsers = initialUsers.filter(u => !existingIds.has(u.id));
+          return missingUsers.length > 0 ? [...cleaned, ...missingUsers] : cleaned;
         });
         setClasses(prev => {
           if (!prev || !Array.isArray(prev) || prev.length === 0) {
@@ -1477,10 +1495,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return matched ? matched.letter : 'D';
   };
 
-  const getStudentResult = (g: Partial<GradeRecord> & { pf: number }, frequency: number): 'APTO' | 'NÃO APTO' | 'F. NOTA' | 'Pendente' => {
+  const getStudentResult = (g: Partial<GradeRecord> & { pf: number }, frequency: number): 'APTO' | 'NÃO APTO' | 'REP. FALTAS' | 'Pendente' => {
     // If student was failed by attendance
     if (frequency < 75) {
-      return 'F. NOTA';
+      return 'REP. FALTAS';
     }
     const totalScore = g.pf;
     const isApproved = totalScore >= 60;
@@ -2001,91 +2019,150 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { renamed: renamedList, unified: unifiedList };
   };
 
+  const computeCalculatedGrade = (record: GradeRecord): GradeRecord => {
+    const s1 = calculateS1(record);
+    const s2 = calculateS2(record);
+    const rawAfc = record.afc;
+    const afcVal = rawAfc !== null && rawAfc !== undefined ? Math.min(40, rawAfc) : null;
+    const extra = record.extra ?? 0;
+    const conselho = record.conselho ?? 0;
+    const pf = Math.min(100, s1 + s2 + (afcVal ?? 0) + extra + conselho);
+    const concept = getStudentConcept(pf, conceptRanges);
+    const { frequency } = getStudentAbsences(record.studentId, record.subjectId, record.classId);
+    const result = getStudentResult({ pf, extra, conselho, afc: afcVal }, frequency);
+    return {
+      ...record,
+      afc: afcVal,
+      s1,
+      s2,
+      pf,
+      concept,
+      result
+    };
+  };
+
+  const createDefaultGradeRecord = (id: string, updates: Partial<GradeRecord>): GradeRecord => {
+    let studentId = updates.studentId || '';
+    let classId = updates.classId || '';
+    let subjectId = updates.subjectId || '';
+    if (id.startsWith('grade_')) {
+      const parts = id.split('_');
+      if (parts.length >= 4) {
+        studentId = studentId || parts[1];
+        classId = classId || parts[2];
+        subjectId = subjectId || parts[3];
+      }
+    }
+    return {
+      id,
+      studentId,
+      classId,
+      subjectId,
+      av1: null, av2: null, av3: null, recS1: null, s1: 0,
+      av4: null, av5: null, av6: null, recS2: null, s2: 0,
+      extra: null, conselho: null, afc: null, pf: 0,
+      concept: 'E',
+      result: 'Pendente',
+      ...updates
+    };
+  };
+
   const updateGrade = (id: string, updates: Partial<GradeRecord>) => {
     setGrades(prev => {
-      const exists = prev.some(g => g.id === id);
-      if (exists) {
-        return prev.map(g => {
-          if (g.id === id) {
-            // Merge updates
-            const merged = { ...g, ...updates };
-            
-            // Calculate S1 & S2
-            const s1 = calculateS1(merged);
-            const s2 = calculateS2(merged);
-            
-            // Final PF (capped at 100) and AFC (capped at 40)
-            const rawAfc = merged.afc;
-            const afcVal = rawAfc !== null && rawAfc !== undefined ? Math.min(40, rawAfc) : null;
-            
-            const extra = merged.extra ?? 0;
-            const conselho = merged.conselho ?? 0;
-            const pf = Math.min(100, s1 + s2 + (afcVal ?? 0) + extra + conselho);
+      const isAfcUpdate = 'afc' in updates;
 
-            // Concept mapping
-            const concept = getStudentConcept(pf, conceptRanges);
-
-            // Result mapping based on attendance frequency
-            const { frequency } = getStudentAbsences(merged.studentId, merged.subjectId, merged.classId);
-            const result = getStudentResult({ pf, extra, conselho, afc: afcVal }, frequency);
-
-            return {
-              ...merged,
-              afc: afcVal,
-              s1,
-              s2,
-              pf,
-              concept,
-              result
-            };
-          }
-          return g;
-        });
-      } else {
-        // Build new record dynamically if it was missing in state
-        let studentId = updates.studentId || '';
-        let classId = updates.classId || '';
-        let subjectId = updates.subjectId || '';
-        if (id.startsWith('grade_')) {
-          const parts = id.split('_');
-          if (parts.length >= 4) {
-            studentId = parts[1];
-            classId = parts[2];
-            subjectId = parts[3];
-          }
+      if (!isAfcUpdate) {
+        const exists = prev.some(g => g.id === id);
+        if (exists) {
+          return prev.map(g => {
+            if (g.id === id) {
+              const merged = { ...g, ...updates };
+              return computeCalculatedGrade(merged);
+            }
+            return g;
+          });
+        } else {
+          const newRecord = createDefaultGradeRecord(id, updates);
+          return [...prev, computeCalculatedGrade(newRecord)];
         }
-        const newRecord: GradeRecord = {
-          id,
-          studentId,
-          classId,
-          subjectId,
-          av1: null, av2: null, av3: null, recS1: null, s1: 0,
-          av4: null, av5: null, av6: null, recS2: null, s2: 0,
-          extra: null, conselho: null, afc: null, pf: 0,
-          concept: 'E',
-          result: 'Pendente',
-          ...updates
-        };
-        const s1 = calculateS1(newRecord);
-        const s2 = calculateS2(newRecord);
-        const rawAfc = newRecord.afc;
-        const afcVal = rawAfc !== null && rawAfc !== undefined ? Math.min(40, rawAfc) : null;
-        const extra = newRecord.extra ?? 0;
-        const conselho = newRecord.conselho ?? 0;
-        const pf = Math.min(100, s1 + s2 + (afcVal ?? 0) + extra + conselho);
-        const concept = getStudentConcept(pf, conceptRanges);
-        const { frequency } = getStudentAbsences(newRecord.studentId, newRecord.subjectId, newRecord.classId);
-        const result = getStudentResult({ pf, extra, conselho, afc: afcVal }, frequency);
-        return [...prev, {
-          ...newRecord,
-          afc: afcVal,
-          s1,
-          s2,
-          pf,
-          concept,
-          result
-        }];
       }
+
+      // AFC Update logic: propagate AFC to all subjects of the student in the same module
+      const rawAfc = updates.afc;
+      const newAfcVal = rawAfc !== null && rawAfc !== undefined ? Math.min(40, rawAfc) : null;
+
+      const existingRecord = prev.find(g => g.id === id);
+      let studentId = existingRecord?.studentId || updates.studentId || '';
+      let classId = existingRecord?.classId || updates.classId || '';
+      let subjectId = existingRecord?.subjectId || updates.subjectId || '';
+
+      if ((!studentId || !classId) && id.startsWith('grade_')) {
+        const parts = id.split('_');
+        if (parts.length >= 4) {
+          studentId = studentId || parts[1];
+          classId = classId || parts[2];
+          subjectId = subjectId || parts[3];
+        }
+      }
+
+      const studentUser = users.find(u => u.id === studentId);
+      classId = classId || studentUser?.classId || '';
+
+      if (!studentId) {
+        // Fallback if studentId cannot be determined
+        const exists = prev.some(g => g.id === id);
+        if (exists) {
+          return prev.map(g => g.id === id ? computeCalculatedGrade({ ...g, ...updates, afc: newAfcVal }) : g);
+        } else {
+          const newRecord = createDefaultGradeRecord(id, { ...updates, afc: newAfcVal });
+          return [...prev, computeCalculatedGrade(newRecord)];
+        }
+      }
+
+      const targetClass = classes.find(c => c.id === classId);
+      const moduleSubjects = targetClass
+        ? subjects.filter(s => s.courseId === targetClass.courseId && s.module === targetClass.module)
+        : [];
+      const moduleSubjectIds = new Set(moduleSubjects.map(s => s.id));
+
+      const updatedPrev = prev.map(g => {
+        const isTargetStudent = g.studentId === studentId;
+        const isSameClassOrModule = (targetClass && g.classId === targetClass.id) || moduleSubjectIds.has(g.subjectId) || g.id === id;
+
+        if (isTargetStudent && isSameClassOrModule) {
+          const merged = g.id === id 
+            ? { ...g, ...updates, afc: newAfcVal }
+            : { ...g, afc: newAfcVal };
+          return computeCalculatedGrade(merged);
+        }
+        return g;
+      });
+
+      if (targetClass) {
+        const existingSubjectIds = new Set(
+          updatedPrev
+            .filter(g => g.studentId === studentId && (g.classId === targetClass.id || moduleSubjectIds.has(g.subjectId)))
+            .map(g => g.subjectId)
+        );
+
+        const newRecordsToAppend: GradeRecord[] = [];
+        moduleSubjects.forEach(sub => {
+          if (!existingSubjectIds.has(sub.id)) {
+            const newRecId = `grade_${studentId}_${targetClass.id}_${sub.id}`;
+            const defaultRec = createDefaultGradeRecord(newRecId, {
+              studentId,
+              classId: targetClass.id,
+              subjectId: sub.id,
+              afc: newAfcVal
+            });
+            newRecordsToAppend.push(computeCalculatedGrade(defaultRec));
+          }
+        });
+
+        return [...updatedPrev, ...newRecordsToAppend];
+      }
+
+      return updatedPrev;
     });
   };
 

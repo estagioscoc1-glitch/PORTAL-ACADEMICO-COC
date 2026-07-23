@@ -27,12 +27,15 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
 
   const printAreaRef = useRef<HTMLDivElement>(null);
 
-  const targetClass = classes.find(c => c.id === classId);
+  const targetStudent = studentId ? users.find(u => u.id === studentId) : null;
+  const targetClass = classes.find(c => c.id === classId) 
+    || (targetStudent?.classId ? classes.find(c => c.id === targetStudent.classId) : null)
+    || classes.find(c => c.id === 'class_enf_m1_matutino') 
+    || classes[0];
   const targetSubject = subjects.find(s => s.id === subjectId);
   const targetCourse = targetClass ? courses.find(co => co.id === targetClass.courseId) : null;
-  const targetStudent = studentId ? users.find(u => u.id === studentId) : null;
   const filteredStudents = users.filter(
-    u => u.role === 'STUDENT' && (u.classId === classId || grades.some(g => g.studentId === u.id && g.classId === classId))
+    u => u.role === 'STUDENT' && (u.classId === targetClass?.id || grades.some(g => g.studentId === u.id && g.classId === targetClass?.id))
   );
   const classStudents = filteredStudents.length > 0 ? filteredStudents : users.filter(u => u.role === 'STUDENT');
 
@@ -943,7 +946,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                           <td className="py-1 text-center border-r border-black font-black font-mono bg-blue-50/40 text-blue-955">{grade ? grade.pf.toFixed(1) : '-'}</td>
                           <td className="py-1 text-center border-r border-black font-black text-[9px]">{grade ? grade.concept : '-'}</td>
                           <td className={`py-1 px-2 text-right border-r border-black font-black ${grade?.result?.includes('APTO') ? 'text-emerald-700' : 'text-red-600'}`}>
-                            {grade ? grade.result : 'Pendente'}
+                            {grade ? (grade.result === 'F. NOTA' ? 'REP. FALTAS' : grade.result) : 'Pendente'}
                           </td>
                         </tr>
                       );
@@ -1139,7 +1142,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
               </thead>
               <tbody className="divide-y divide-black font-medium text-[9px]">
                 {classSubjects.map((sub) => {
-                  const score = grades.find(g => g.studentId === student.id && g.subjectId === sub.id);
+                  const score = grades.find(g => g.studentId === student.id && g.subjectId === sub.id && (targetClass ? g.classId === targetClass.id : true)) || grades.find(g => g.studentId === student.id && g.subjectId === sub.id);
                   const absences = getStudentAbsences(student.id, sub.id);
                   return (
                     <tr key={sub.id} className="hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50">
@@ -1153,7 +1156,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       <td className="py-1.5 px-1.5 text-center border-r border-black font-mono">{absences.total}</td>
                       <td className="py-1.5 px-1.5 text-center border-r border-black font-black">{score ? score.concept : 'D'}</td>
                       <td className={`py-1.5 px-2 text-right border-r border-black font-black text-[9px] ${score?.result?.includes('APTO') ? 'text-emerald-700' : 'text-red-600'}`}>
-                        {score ? score.result : 'Pendente'}
+                        {score ? (score.result === 'F. NOTA' ? 'REP. FALTAS' : score.result) : 'Pendente'}
                       </td>
                     </tr>
                   );
@@ -1483,7 +1486,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                       </thead>
                       <tbody className="divide-y divide-black font-medium text-[9px]">
                         {classSubjects.map((sub, i) => {
-                          const score = grades.find(g => g.studentId === targetStudent.id && g.subjectId === sub.id);
+                          const score = grades.find(g => g.studentId === targetStudent.id && g.subjectId === sub.id && (targetClass ? g.classId === targetClass.id : true)) || grades.find(g => g.studentId === targetStudent.id && g.subjectId === sub.id);
                           const absences = getStudentAbsences(targetStudent.id, sub.id);
                           return (
                             <tr key={sub.id} className="hover:bg-gray-50 text-black odd:bg-white even:bg-gray-100/50">
@@ -1499,7 +1502,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                               <td className={`py-1.5 px-2 text-right border-r border-black font-black text-[9px] ${
                                 score?.result?.includes('APTO') ? 'text-emerald-700' : 'text-red-600'
                               }`}>
-                                {score ? score.result : 'Pendente'}
+                                {score ? (score.result === 'F. NOTA' ? 'REP. FALTAS' : score.result) : 'Pendente'}
                               </td>
                             </tr>
                           );
@@ -1587,7 +1590,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                                       <td className={`py-1 px-1.5 text-right border-r border-black font-black text-[8.5px] ${
                                         score?.result === 'APTO' ? 'text-emerald-700' : 'text-red-600'
                                       }`}>
-                                        {score ? score.result : 'Pendente'}
+                                        {score ? (score.result === 'F. NOTA' ? 'REP. FALTAS' : score.result) : 'Pendente'}
                                       </td>
                                     </tr>
                                   );
@@ -1876,7 +1879,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documentType, studentId,
                                 <td className={`py-1 px-2 text-right border-r border-black font-black ${
                                   grade?.result === 'APTO' ? 'text-emerald-700' : 'text-red-600'
                                 }`}>
-                                  {grade ? grade.result : 'Pendente'}
+                                  {grade ? (grade.result === 'F. NOTA' ? 'REP. FALTAS' : grade.result) : 'Pendente'}
                                 </td>
                               </tr>
                             );

@@ -1,5 +1,6 @@
 import { User, UserRole, Course, ClassSection, Subject, GradeRecord, AttendanceSession, ConceptRange, AcademicCalendarEvent, Shift, CalendarEventType } from '../types';
 import { initialGrades } from './initialGrades';
+import { allPdfStudentUsers } from './allPdfStudents';
 
 export const initialCourses: Course[] = [
   {
@@ -36,7 +37,7 @@ export const initialConceptRanges: ConceptRange[] = [
   { id: '4', minGrade: 0, maxGrade: 59, letter: 'D', description: 'Insuficiente' }
 ];
 
-// Pristine base users list containing Pedagogy Administrator
+// Pristine base users list containing Pedagogy Administrator and all enrolled students
 export const initialUsers: User[] = [
   {
     id: 'admin',
@@ -46,7 +47,8 @@ export const initialUsers: User[] = [
     role: UserRole.ADMIN,
     password: '',
     active: true
-  }
+  },
+  ...allPdfStudentUsers
 ];
 
 // Complete Curriculum Matrix for all Technical Courses (Subjects and workloads)

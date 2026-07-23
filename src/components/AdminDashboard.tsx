@@ -173,10 +173,7 @@ export const AdminDashboard: React.FC = () => {
 
   const activePeriodStudentIds = Array.from(new Set(activePeriodGrades.map(g => g.studentId)));
   const allStudentUsers = users.filter(u => u.role === UserRole.STUDENT);
-  const matchedPeriodStudents = allStudentUsers.filter(u => 
-    activePeriodClassIds.includes(u.classId || '') || activePeriodStudentIds.includes(u.id)
-  );
-  const activePeriodStudents = matchedPeriodStudents.length > 0 ? matchedPeriodStudents : allStudentUsers;
+  const activePeriodStudents = allStudentUsers;
 
   // New class state
   const [className, setClassName] = useState('');
@@ -259,8 +256,9 @@ export const AdminDashboard: React.FC = () => {
       if (!selectedAdminClassId || !activeIds.includes(selectedAdminClassId)) {
         setSelectedAdminClassId(activePeriodClasses[0].id);
       }
-      if (!selectedBoletimClassId || !activeIds.includes(selectedBoletimClassId)) {
-        setSelectedBoletimClassId(activePeriodClasses[0].id);
+      const allClassIds = classes.map(c => c.id);
+      if (!selectedBoletimClassId || !allClassIds.includes(selectedBoletimClassId)) {
+        setSelectedBoletimClassId(activePeriodClasses[0]?.id || classes[0]?.id || '');
       }
       if (!selectedClassIdForStudents || !activeIds.includes(selectedClassIdForStudents)) {
         setSelectedClassIdForStudents(activePeriodClasses[0].id);
@@ -576,7 +574,7 @@ export const AdminDashboard: React.FC = () => {
   };
 
   // Filter student directory search
-  const filteredStudents = (searchQuery.trim() !== '' ? allStudentUsers : activeStudents).filter(s => {
+  const filteredStudents = allStudentUsers.filter(s => {
     return s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.enrollment?.includes(searchQuery);
   });
 
@@ -1293,7 +1291,7 @@ export const AdminDashboard: React.FC = () => {
                       <button
                         type="button"
                         id={`print-boletim-${student.enrollment}-btn`}
-                        onClick={() => setPrintDoc({ type: 'boletim', studentId: student.id })}
+                        onClick={() => setPrintDoc({ type: 'boletim', studentId: student.id, classId: student.classId || selectedAdminClassId })}
                         className="p-2 bg-blue-50 dark:bg-slate-800 text-blue-700 dark:text-blue-300 rounded-xl hover:bg-blue-100 transition-all"
                         title="Imprimir Ficha de Aproveitamento"
                       >
@@ -3522,8 +3520,8 @@ export const AdminDashboard: React.FC = () => {
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750 rounded-xl outline-none text-xs text-slate-800 dark:text-white"
                   >
                     <option value="">Selecione uma Turma...</option>
-                    {activePeriodClasses.map(cls => (
-                      <option key={cls.id} value={cls.id}>{cls.name} ({cls.code})</option>
+                    {classes.map(cls => (
+                      <option key={cls.id} value={cls.id}>{cls.name} ({cls.code}) - {cls.year}/{cls.semester}</option>
                     ))}
                   </select>
                 </div>
@@ -3830,7 +3828,7 @@ export const AdminDashboard: React.FC = () => {
                                         ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/45 dark:text-amber-400'
                                         : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
                                     }`}>
-                                      {result}
+                                      {result === 'F. NOTA' ? 'REP. FALTAS' : result}
                                     </span>
                                   </td>
                                 </tr>
@@ -4180,7 +4178,7 @@ export const AdminDashboard: React.FC = () => {
                                                 ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' 
                                                 : 'bg-red-500/10 text-red-600 dark:text-red-400'
                                             }`}>
-                                              {score ? score.result : 'Pendente'}
+                                              {score ? (score.result === 'F. NOTA' ? 'REP. FALTAS' : score.result) : 'Pendente'}
                                             </span>
                                           </td>
                                         </tr>

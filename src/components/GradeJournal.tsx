@@ -580,7 +580,7 @@ export const GradeJournal: React.FC = () => {
                             ? 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400'
                             : 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400'
                       }`}>
-                        {grade.result}
+                        {grade.result === 'F. NOTA' ? 'REP. FALTAS' : grade.result}
                       </span>
                     </td>
                   </tr>
