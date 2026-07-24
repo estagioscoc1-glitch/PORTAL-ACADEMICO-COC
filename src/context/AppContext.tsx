@@ -560,14 +560,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [users, setUsers] = useState<User[]>(() => {
     const val = safeJsonParse(safeLocalStorage.getItem('oc_users'), initialUsers);
     const baseList = (val && Array.isArray(val) && val.length > 0) ? val : initialUsers;
-    const validInitialIds = new Set(initialUsers.map(u => u.id));
-    // Keep admin, users registered directly by the user, and initialUsers (like Aluno Teste). Filter out obsolete std_ imported students.
-    const filtered = baseList.filter(u => u.id !== 'std_aluno_teste' && (u.role !== UserRole.STUDENT || validInitialIds.has(u.id) || (!u.id.startsWith('std_25') && !u.id.startsWith('std_21') && !u.id.startsWith('std_22') && !u.id.startsWith('std_23'))));
-    const existingIds = new Set(filtered.map(u => u.id));
-    const missingUsers = initialUsers.filter(u => !existingIds.has(u.id));
-    const result = missingUsers.length > 0 ? [...filtered, ...missingUsers] : filtered;
-    safeLocalStorage.setItem('oc_users', JSON.stringify(result));
-    return result;
+    return baseList;
   });
 
   const [courses, setCourses] = useState<Course[]>(() => {
@@ -796,18 +789,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             const currentState = latestStateRef.current;
 
-            const rawUsersFromCloud = state.users !== undefined ? state.users : currentState.users;
-            const validInitialIds = new Set(initialUsers.map(u => u.id));
-            const cleanedCloudUsers = (rawUsersFromCloud || []).filter((u: User) => u.id !== 'std_aluno_teste' && (u.role !== UserRole.STUDENT || validInitialIds.has(u.id) || (!u.id.startsWith('std_25') && !u.id.startsWith('std_21') && !u.id.startsWith('std_22') && !u.id.startsWith('std_23'))));
-            const cloudUserIds = new Set(cleanedCloudUsers.map((u: User) => u.id));
-            const missingInitialUsers = initialUsers.filter(u => !cloudUserIds.has(u.id));
-            const healedUsersFromCloud = missingInitialUsers.length > 0
-              ? [...cleanedCloudUsers, ...missingInitialUsers]
-              : cleanedCloudUsers;
+            const usersFromCloud = state.users !== undefined ? state.users : currentState.users;
 
             // Build comparison payload (exclude transient states/security logs from matching block)
             const receivedPayload = {
-              users: healedUsersFromCloud,
+              users: usersFromCloud,
               courses: state.courses !== undefined ? state.courses : currentState.courses,
               classes: state.classes !== undefined ? state.classes : currentState.classes,
               subjects: state.subjects !== undefined ? state.subjects : currentState.subjects,
@@ -832,8 +818,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             // Apply state changes to React and safeLocalStorage
             if (state.users) {
-              setUsers(healedUsersFromCloud);
-              safeLocalStorage.setItem('oc_users', JSON.stringify(healedUsersFromCloud));
+              setUsers(state.users);
+              safeLocalStorage.setItem('oc_users', JSON.stringify(state.users));
             }
             if (state.courses) { setCourses(state.courses); safeLocalStorage.setItem('oc_courses', JSON.stringify(state.courses)); }
             if (state.classes) { setClasses(state.classes); safeLocalStorage.setItem('oc_classes', JSON.stringify(state.classes)); }
@@ -889,12 +875,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               console.warn('[postLoadDefense] Coleção de usuários inválida ou nula, restaurando padrão.');
               return initialUsers;
             }
-            const validInitialIds = new Set(initialUsers.map(u => u.id));
-            const cleaned = prev.filter(u => u.id !== 'std_aluno_teste' && (u.role !== UserRole.STUDENT || validInitialIds.has(u.id) || (!u.id.startsWith('std_25') && !u.id.startsWith('std_21') && !u.id.startsWith('std_22') && !u.id.startsWith('std_23'))));
-            const existingIds = new Set(cleaned.map(u => u.id));
-            const missingUsers = initialUsers.filter(u => !existingIds.has(u.id));
-            const healed = missingUsers.length > 0 ? [...cleaned, ...missingUsers] : cleaned;
-            return healed.map(u => u.id === 'admin' && !u.password ? { ...u, password: 'Admin@Lynx2026' } : u);
+            return prev;
           });
           setClasses(prev => {
             if (!prev || !Array.isArray(prev) || prev.length === 0) {
