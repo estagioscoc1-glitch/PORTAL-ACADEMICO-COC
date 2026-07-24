@@ -82,6 +82,7 @@ export interface SystemStatePayload {
   subjects: any[];
   grades: any[];
   attendance: any[];
+  directAbsences?: Record<string, number>;
   conceptRanges: any[];
   calendarEvents: any[];
   messages: any[];

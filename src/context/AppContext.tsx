@@ -714,7 +714,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [internships]);
 
   const latestStateRef = React.useRef({
-    users, courses, classes, subjects, grades, attendance,
+    users, courses, classes, subjects, grades, attendance, directAbsences,
     conceptRanges, calendarEvents, messages, notifications,
     currentPeriod, periods, simulatedDate, autoLockEnabled,
     declarationConfigs, studentDocuments, internships,
@@ -723,16 +723,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     latestStateRef.current = {
-      users, courses, classes, subjects, grades, attendance,
+      users, courses, classes, subjects, grades, attendance, directAbsences,
       conceptRanges, calendarEvents, messages, notifications,
       currentPeriod, periods, simulatedDate, autoLockEnabled,
       declarationConfigs, studentDocuments, internships,
       adminPasswordResetDone, securityLogs
     };
-  }, [users, courses, classes, subjects, grades, attendance, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships, adminPasswordResetDone, securityLogs]);
+  }, [users, courses, classes, subjects, grades, attendance, directAbsences, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships, adminPasswordResetDone, securityLogs]);
 
   const lastReceivedPayloadRef = React.useRef<string>('');
   const lastLocalWriteTimeRef = React.useRef<string | null>(lastLocalWriteTime);
+  const editStartTimeRef = React.useRef<number | null>(null);
 
   useEffect(() => {
     lastLocalWriteTimeRef.current = lastLocalWriteTime;
@@ -812,6 +813,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               subjects: state.subjects !== undefined ? state.subjects : currentState.subjects,
               grades: state.grades !== undefined ? state.grades : currentState.grades,
               attendance: state.attendance !== undefined ? state.attendance : currentState.attendance,
+              directAbsences: state.directAbsences !== undefined ? state.directAbsences : currentState.directAbsences,
               conceptRanges: state.conceptRanges !== undefined ? state.conceptRanges : currentState.conceptRanges,
               calendarEvents: state.calendarEvents !== undefined ? state.calendarEvents : currentState.calendarEvents,
               messages: state.messages !== undefined ? state.messages : currentState.messages,
@@ -838,6 +840,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (state.subjects) { setSubjects(state.subjects); safeLocalStorage.setItem('oc_subjects', JSON.stringify(state.subjects)); }
             if (state.grades) { setGrades(state.grades); safeLocalStorage.setItem('oc_grades', JSON.stringify(state.grades)); }
             if (state.attendance) { setAttendance(state.attendance); safeLocalStorage.setItem('oc_attendance', JSON.stringify(state.attendance)); }
+            if (state.directAbsences) { setDirectAbsences(state.directAbsences); safeLocalStorage.setItem('oc_direct_absences', JSON.stringify(state.directAbsences)); }
             if (state.conceptRanges) { setConceptRanges(state.conceptRanges); safeLocalStorage.setItem('oc_concept_ranges', JSON.stringify(state.conceptRanges)); }
             if (state.calendarEvents) { setCalendarEvents(state.calendarEvents); safeLocalStorage.setItem('oc_calendar_events', JSON.stringify(state.calendarEvents)); }
             if (state.messages) { setMessages(state.messages); safeLocalStorage.setItem('oc_messages', JSON.stringify(state.messages)); }
@@ -866,7 +869,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setCloudBackupStatus('idle');
             // If Firestore database is empty, seed it with initial setup data
             const payload: SystemStatePayload = {
-              users, courses, classes, subjects, grades, attendance,
+              users, courses, classes, subjects, grades, attendance, directAbsences,
               conceptRanges, calendarEvents, messages, notifications,
               currentPeriod, periods, simulatedDate, autoLockEnabled, securityLogs,
               declarationConfigs, studentDocuments, internships,
@@ -1400,7 +1403,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // to ensure any pending admin/teacher local edits are fully flushed to Firestore.
     if (cloudBackupStatus !== 'quota_exceeded') {
       const payload: SystemStatePayload = {
-        users, courses, classes, subjects, grades, attendance,
+        users, courses, classes, subjects, grades, attendance, directAbsences,
         conceptRanges, calendarEvents, messages, notifications,
         currentPeriod, periods, simulatedDate, autoLockEnabled, securityLogs,
         declarationConfigs, studentDocuments, internships, adminPasswordResetDone
@@ -3255,7 +3258,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCloudBackupStatus('syncing');
     try {
       const payload: SystemStatePayload = {
-        users, courses, classes, subjects, grades, attendance,
+        users, courses, classes, subjects, grades, attendance, directAbsences,
         conceptRanges, calendarEvents, messages, notifications,
         currentPeriod, periods, simulatedDate, autoLockEnabled, securityLogs,
         declarationConfigs, studentDocuments, internships, adminPasswordResetDone
@@ -3371,6 +3374,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (state.subjects) { setSubjects(state.subjects); safeLocalStorage.setItem('oc_subjects', JSON.stringify(state.subjects)); }
       if (state.grades) { setGrades(state.grades); safeLocalStorage.setItem('oc_grades', JSON.stringify(state.grades)); }
       if (state.attendance) { setAttendance(state.attendance); safeLocalStorage.setItem('oc_attendance', JSON.stringify(state.attendance)); }
+      if (state.directAbsences) { setDirectAbsences(state.directAbsences); safeLocalStorage.setItem('oc_direct_absences', JSON.stringify(state.directAbsences)); }
       if (state.conceptRanges) { setConceptRanges(state.conceptRanges); safeLocalStorage.setItem('oc_concept_ranges', JSON.stringify(state.conceptRanges)); }
       if (state.calendarEvents) { setCalendarEvents(state.calendarEvents); safeLocalStorage.setItem('oc_calendar_events', JSON.stringify(state.calendarEvents)); }
       if (state.messages) { setMessages(state.messages); safeLocalStorage.setItem('oc_messages', JSON.stringify(state.messages)); }
@@ -3464,6 +3468,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         subjects: currentState.subjects,
         grades: currentState.grades,
         attendance: currentState.attendance,
+        directAbsences: currentState.directAbsences,
         conceptRanges: currentState.conceptRanges,
         calendarEvents: currentState.calendarEvents,
         messages: currentState.messages,
@@ -3593,7 +3598,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (cloudBackupStatus === 'quota_exceeded') return; // Do not attempt saves if quota is exceeded
 
     const currentPayload = {
-      users, courses, classes, subjects, grades, attendance,
+      users, courses, classes, subjects, grades, attendance, directAbsences,
       conceptRanges, calendarEvents, messages, notifications,
       currentPeriod, periods, simulatedDate, autoLockEnabled,
       declarationConfigs, studentDocuments, internships,
@@ -3604,13 +3609,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Skip saving if local state is identical to what was recently received from/saved to the cloud
     if (currentPayloadStr === lastReceivedPayloadRef.current) {
       setCloudBackupStatus('success');
+      editStartTimeRef.current = null;
       return;
+    }
+
+    // Track when unsaved edits started
+    if (!editStartTimeRef.current) {
+      editStartTimeRef.current = Date.now();
     }
 
     // Update local modification time because a change was detected
     const nowStr = new Date().toISOString();
     setLastLocalWriteTime(nowStr);
     safeLocalStorage.setItem('oc_last_local_write_time', nowStr);
+
+    const elapsedTime = Date.now() - editStartTimeRef.current;
+    const debounceDelay = elapsedTime >= 4000 ? 0 : 1000;
 
     const delayDebounceFn = setTimeout(async () => {
       const payload: SystemStatePayload = {
@@ -3623,6 +3637,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const success = await saveStateToCloud(payload);
         
         if (success) {
+          editStartTimeRef.current = null; // Reset unsaved edit timestamp on success
           // Prevent re-triggering due to this exact state
           lastReceivedPayloadRef.current = currentPayloadStr;
           
@@ -3668,10 +3683,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setCloudBackupStatus('error');
         }
       }
-    }, 1000); // 1000ms debounce delay to batch multiple updates together
+    }, debounceDelay); // Use 0ms if unsaved changes have been pending for >=4000ms, else 1000ms
 
     return () => clearTimeout(delayDebounceFn);
-  }, [isLoading, hasReceivedInitialCloudSync, users, courses, classes, subjects, grades, attendance, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships, adminPasswordResetDone]);
+  }, [isLoading, hasReceivedInitialCloudSync, users, courses, classes, subjects, grades, attendance, directAbsences, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships, adminPasswordResetDone]);
+
+  // Recovery mechanism for quota_exceeded status (resets status to idle after 5 minutes to retry)
+  useEffect(() => {
+    if (cloudBackupStatus !== 'quota_exceeded') return;
+
+    const quotaResetTimer = setTimeout(() => {
+      console.log('Resetando status de cota excedida para idle para permitir tentativa de autosave.');
+      setCloudBackupStatus('idle');
+    }, 5 * 60 * 1000);
+
+    return () => clearTimeout(quotaResetTimer);
+  }, [cloudBackupStatus]);
 
   return (
     <AppContext.Provider value={{
