@@ -167,13 +167,17 @@ export const AdminDashboard: React.FC = () => {
   // Active period entities
   const activePeriodClasses = classes.filter(c => c.year === currentYear && c.semester === currentSemester);
   const activePeriodClassIds = activePeriodClasses.map(c => c.id);
+  const activePeriodClassIdsSet = new Set(activePeriodClassIds);
 
-  const activePeriodGrades = grades.filter(g => activePeriodClassIds.includes(g.classId));
-  const activePeriodAttendance = attendance.filter(s => activePeriodClassIds.includes(s.classId));
+  const activePeriodGrades = grades.filter(g => activePeriodClassIdsSet.has(g.classId));
+  const activePeriodAttendance = attendance.filter(s => activePeriodClassIdsSet.has(s.classId));
 
-  const activePeriodStudentIds = Array.from(new Set(activePeriodGrades.map(g => g.studentId)));
   const allStudentUsers = users.filter(u => u.role === UserRole.STUDENT);
-  const activePeriodStudents = allStudentUsers;
+  const activePeriodStudents = allStudentUsers.filter(u =>
+    (u.classId && activePeriodClassIdsSet.has(u.classId)) ||
+    grades.some(g => g.studentId === u.id && activePeriodClassIdsSet.has(g.classId))
+  );
+  const activePeriodStudentIds = Array.from(new Set(activePeriodStudents.map(u => u.id)));
 
   // New class state
   const [className, setClassName] = useState('');

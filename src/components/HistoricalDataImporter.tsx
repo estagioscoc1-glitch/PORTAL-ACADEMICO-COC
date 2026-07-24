@@ -13,7 +13,7 @@ import { motion } from 'motion/react';
 import type { DataRepairSummary } from '../context/AppContext';
 
 export const HistoricalDataImporter: React.FC = () => {
-  const { importHistoricalData, repairDuplicateImports, undoHistoricalImports } = useApp();
+  const { importHistoricalData, repairDuplicateImports, undoHistoricalImports, currentPeriod } = useApp();
   const [jsonInput, setJsonInput] = useState('');
   const [fileError, setFileError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -35,6 +35,14 @@ export const HistoricalDataImporter: React.FC = () => {
     removedGradesCount: number;
   } | null>(null);
 
+  const [pendingJsonImport, setPendingJsonImport] = useState<{
+    data: any;
+    classNames: string[];
+    classesCount: number;
+    subjectsCount: number;
+    studentsCount: number;
+  } | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleJsonChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -54,11 +62,47 @@ export const HistoricalDataImporter: React.FC = () => {
 
     try {
       const parsed = JSON.parse(jsonInput);
-      const summary = importHistoricalData(parsed);
-      setImportResult(summary);
-      setJsonInput(''); // Clear input on success
+      if (!parsed || !Array.isArray(parsed.classes) || parsed.classes.length === 0) {
+        throw new Error("Formato inválido: O JSON deve conter a propriedade 'classes' com ao menos uma turma.");
+      }
+
+      const classNames = parsed.classes.map((c: any) => c.className || 'Turma sem Nome');
+      let subjectsCount = 0;
+      let studentsCount = 0;
+
+      parsed.classes.forEach((c: any) => {
+        if (Array.isArray(c.subjects)) {
+          subjectsCount += c.subjects.length;
+          c.subjects.forEach((s: any) => {
+            if (Array.isArray(s.records)) {
+              studentsCount += s.records.length;
+            }
+          });
+        }
+      });
+
+      setPendingJsonImport({
+        data: parsed,
+        classNames,
+        classesCount: parsed.classes.length,
+        subjectsCount,
+        studentsCount
+      });
     } catch (err) {
       setFileError(`Erro ao processar JSON: ${(err as Error).message}`);
+    }
+  };
+
+  const confirmHistoricalImport = () => {
+    if (!pendingJsonImport) return;
+    try {
+      const summary = importHistoricalData(pendingJsonImport.data, currentPeriod);
+      setImportResult(summary);
+      setJsonInput('');
+      setPendingJsonImport(null);
+    } catch (err) {
+      setFileError(`Erro ao executar a importação: ${(err as Error).message}`);
+      setPendingJsonImport(null);
     }
   };
 
@@ -419,6 +463,73 @@ export const HistoricalDataImporter: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Confirmation Modal Overlay */}
+      {pendingJsonImport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl relative overflow-hidden"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 rounded-2xl">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Confirmação do Semestre</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Validação obrigatória de matrícula da turma</p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 rounded-2xl mb-5 text-center">
+              <p className="text-base font-bold text-slate-800 dark:text-slate-100 leading-snug">
+                Tem certeza de que deseja importar esta turma para o semestre <span className="text-blue-700 dark:text-blue-400 underline font-black">{currentPeriod}</span>?
+              </p>
+            </div>
+
+            <div className="space-y-2 mb-6 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Turmas a Importar:</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{pendingJsonImport.classNames.join(', ')}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Semestre Destino:</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400">{currentPeriod}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Disciplinas & Diários:</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{pendingJsonImport.subjectsCount} disciplinas</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Alunos/Notas/Faltas:</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">{pendingJsonImport.studentsCount} lançamentos</span>
+              </div>
+              <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                ✓ A turma e suas matrículas serão gravadas no semestre <strong>{currentPeriod}</strong> e os diários ficarão <strong>100% liberados para edições de notas e faltas</strong>.
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setPendingJsonImport(null)}
+                className="flex-1 py-3 px-4 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmHistoricalImport}
+                className="flex-1 py-3 px-4 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                <span>Sim, importar</span>
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

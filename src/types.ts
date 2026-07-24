@@ -58,6 +58,7 @@ export interface ClassSection {
   closedS1: boolean;
   closedS2: boolean;
   closedDefinitive: boolean;
+  isImported?: boolean;
 }
 
 export interface Subject {

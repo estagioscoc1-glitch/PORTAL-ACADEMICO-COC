@@ -174,7 +174,7 @@ interface AppContextType {
   importStudents: (studentList: { name: string, enrollment: string, email: string }[], targetClassId: string) => void;
   importSubjects: (subjectList: { name: string, workload: number }[], courseId: string, module: number) => void;
   importConcepts: (conceptList: ConceptRange[]) => void;
-  importHistoricalData: (data: any) => HistoricalImportSummary;
+  importHistoricalData: (data: any, targetPeriod?: string) => HistoricalImportSummary;
   repairDuplicateImports: () => DataRepairSummary;
   undoHistoricalImports: () => { removedClassesCount: number; removedStudentsCount: number; removedGradesCount: number };
 
@@ -1529,7 +1529,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setClasses(prev => [...prev, uppercaseCls]);
     // Create automatic diaries/records for all existing subjects under this class's course
     const classSubjects = subjects.filter(s => s.courseId === cls.courseId && s.module === cls.module);
-    const classStudents = users.filter(u => u.role === UserRole.STUDENT); // distribute active students
+    const classStudents = users.filter(u => u.role === UserRole.STUDENT && u.classId === cls.id);
 
     const newGrades: GradeRecord[] = [];
     classSubjects.forEach(sub => {
@@ -1540,8 +1540,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           subjectId: sub.id,
           studentId: std.id,
           av1: null, av2: null, av3: null, recS1: null, s1: 0,
-          av4: null, av5: null, av6: null, recS2: null, s2: 0,
-          extra: null, conselho: null, afc: null, pf: 0,
+          av4: null, av5: null, afc: null, recS2: null, s2: 0,
+          extra: null, conselho: null, pf: 0,
           concept: 'D',
           result: 'Pendente'
         });
@@ -1581,10 +1581,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     // Auto generate grades for all classes matching course & module
     const matchingClasses = classes.filter(c => c.courseId === sub.courseId && c.module === sub.module);
-    const classStudents = users.filter(u => u.role === UserRole.STUDENT);
 
     const newGrades: GradeRecord[] = [];
     matchingClasses.forEach(cls => {
+      const classStudents = users.filter(u => u.role === UserRole.STUDENT && u.classId === cls.id);
       classStudents.forEach(std => {
         newGrades.push({
           id: `g_new_${Date.now()}_${sub.id}_${std.id}`,
@@ -2363,24 +2363,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
         newUsers.push(newStud);
       } else {
+        const currentEffectiveClassId = existingUserUpdates[exists.id]?.classId !== undefined 
+          ? existingUserUpdates[exists.id]?.classId 
+          : exists.classId;
+
+        let shouldUpdateClassId = false;
+        if (!currentEffectiveClassId) {
+          shouldUpdateClassId = true;
+        } else {
+          const currentClass = classes.find(c => c.id === currentEffectiveClassId);
+          if (!currentClass || (currentClass.year === cls.year && currentClass.semester === cls.semester)) {
+            shouldUpdateClassId = true;
+          }
+        }
+
         if (isMatchedByName) {
           const updatedEmail = std.email || exists.email || `${std.enrollment}@aluno.oc.com`;
-          existingUserUpdates[exists.id] = {
+          const updateObj: Partial<User> = {
             enrollment: std.enrollment,
             username: std.enrollment,
             email: updatedEmail,
-            classId: cls.id,
             active: true
+          };
+          if (shouldUpdateClassId) {
+            updateObj.classId = cls.id;
+          }
+          existingUserUpdates[exists.id] = {
+            ...existingUserUpdates[exists.id],
+            ...updateObj
           };
           const inNewUsers = newUsers.find(u => u.id === exists.id);
           if (inNewUsers) {
             inNewUsers.enrollment = std.enrollment;
             inNewUsers.username = std.enrollment;
             inNewUsers.email = updatedEmail;
-            inNewUsers.classId = cls.id;
+            if (shouldUpdateClassId) {
+              inNewUsers.classId = cls.id;
+            }
           }
         } else {
-          existingUserUpdates[exists.id] = { active: true, classId: cls.id };
+          const updateObj: Partial<User> = { active: true };
+          if (shouldUpdateClassId) {
+            updateObj.classId = cls.id;
+          }
+          existingUserUpdates[exists.id] = {
+            ...existingUserUpdates[exists.id],
+            ...updateObj
+          };
         }
       }
 
@@ -2449,7 +2478,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setConceptRanges(conceptList);
   };
 
-  const importHistoricalData = (jsonData: any): HistoricalImportSummary => {
+  const importHistoricalData = (jsonData: any, targetPeriod?: string): HistoricalImportSummary => {
     if (!jsonData || !Array.isArray(jsonData.classes)) {
       throw new Error("Formato inválido: O JSON deve conter um array 'classes'.");
     }
@@ -2474,6 +2503,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     jsonData.classes.forEach((clsItem: any) => {
       const { className, courseName, shift, module: clsModule, year, semester, subjects: clsSubjects } = clsItem;
 
+      const activeTargetPeriod = targetPeriod || currentPeriod;
+      const [pYear, pSem] = activeTargetPeriod.split('/');
+      const targetYear = targetPeriod ? (parseInt(pYear) || Number(year) || 2026) : (Number(year) || parseInt(pYear) || 2026);
+      const targetSemester = targetPeriod ? (parseInt(pSem) || Number(semester) || 1) : (Number(semester) || parseInt(pSem) || 1);
+
       // 1. Course Check / Creation
       // NOTE: use cleanTextForSync (accent/whitespace/case-insensitive) instead of a plain
       // trim+lowercase compare. Mapas convertidos de PDF frequentemente têm pequenas
@@ -2484,7 +2518,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         course = {
           id: `crs_hist_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
           name: courseName.toUpperCase().trim(),
-          description: `CURSO HISTÓRICO ${courseName.toUpperCase().trim()}`
+          description: `CURSO IMPORTADO ${courseName.toUpperCase().trim()}`
         };
         currentCourses.push(course);
         coursesCreated++;
@@ -2493,30 +2527,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 2. ClassSection Check / Creation
       let classSection = currentClasses.find(c => 
         cleanTextForSync(c.name) === cleanTextForSync(className) &&
-        c.year === Number(year) &&
-        c.semester === Number(semester) &&
+        c.year === targetYear &&
+        c.semester === targetSemester &&
         c.module === Number(clsModule)
       );
       if (!classSection) {
         classSection = {
           id: `class_hist_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
           name: className.toUpperCase().trim(),
-          code: `HIST-${year}-${semester}-${clsModule}`,
+          code: `IMP-${targetYear}-${targetSemester}-${clsModule}`,
           courseId: course.id,
-          shift: shift as Shift,
+          shift: (shift as Shift) || Shift.MATUTINO,
           module: Number(clsModule),
-          year: Number(year),
-          semester: Number(semester),
-          closedS1: true,
-          closedS2: true,
-          closedDefinitive: true
+          year: targetYear,
+          semester: targetSemester,
+          closedS1: false,
+          closedS2: false,
+          closedDefinitive: false,
+          isImported: true
         };
         currentClasses.push(classSection);
         classesCreated++;
       }
 
       // 3. Period check/creation
-      const periodStr = `${year}/${semester}`;
+      const periodStr = `${targetYear}/${targetSemester}`;
       if (!currentPeriods.includes(periodStr)) {
         currentPeriods.push(periodStr);
       }
@@ -2868,8 +2903,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const undoHistoricalImports = (): { removedClassesCount: number; removedStudentsCount: number; removedGradesCount: number } => {
-    // 1. Identificar todas as ClassSection com closedDefinitive: true (exclusivas das turmas históricas)
-    const historicalClasses = classes.filter(c => c.closedDefinitive === true);
+    // 1. Identificar todas as ClassSection importadas ou históricas
+    const historicalClasses = classes.filter(c => c.isImported === true || c.closedDefinitive === true || c.code?.startsWith('HIST-') || c.code?.startsWith('IMP-'));
     const historicalClassIds = new Set(historicalClasses.map(c => c.id));
     const removedClassesCount = historicalClasses.length;
 

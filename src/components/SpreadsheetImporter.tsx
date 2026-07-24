@@ -20,6 +20,19 @@ interface ParsedSubject {
   workload: number;
 }
 
+interface PendingSpreadsheetImport {
+  type: 'students' | 'subjects' | 'concepts';
+  title: string;
+  itemsCount: number;
+  previewList: string[];
+  data: any;
+  fileName: string;
+  targetClassId?: string;
+  targetCourseId?: string;
+  targetModule?: number;
+  successMessage: string;
+}
+
 export const SpreadsheetImporter: React.FC = () => {
   const { importStudents, importSubjects, importConcepts, classes, courses, currentPeriod } = useApp();
   const [selectedClassId, setSelectedClassId] = useState('');
@@ -54,6 +67,37 @@ export const SpreadsheetImporter: React.FC = () => {
   const [fileName, setFileName] = useState('');
   const [parsedCount, setParsedCount] = useState<number | null>(null);
   const [parsedPreview, setParsedPreview] = useState<string[]>([]);
+  const [pendingImport, setPendingImport] = useState<PendingSpreadsheetImport | null>(null);
+
+  const confirmSpreadsheetImport = () => {
+    if (!pendingImport) return;
+
+    try {
+      if (pendingImport.type === 'students') {
+        importStudents(pendingImport.data, pendingImport.targetClassId!);
+      } else if (pendingImport.type === 'subjects') {
+        importSubjects(pendingImport.data, pendingImport.targetCourseId!, pendingImport.targetModule!);
+      } else if (pendingImport.type === 'concepts') {
+        importConcepts(pendingImport.data);
+      }
+
+      setFileName(pendingImport.fileName);
+      setParsedCount(pendingImport.itemsCount);
+      setParsedPreview(pendingImport.previewList);
+      setStatus({
+        type: 'success',
+        message: `[Semestre ${currentPeriod}] ${pendingImport.successMessage}`
+      });
+    } catch (err: any) {
+      setStatus({
+        type: 'error',
+        message: err.message || 'Erro ao realizar importação.'
+      });
+    } finally {
+      setPendingImport(null);
+      setIsLoading(false);
+    }
+  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -282,14 +326,16 @@ export const SpreadsheetImporter: React.FC = () => {
             throw new Error("Não foi possível encontrar nenhum aluno válido com matrícula e nome. Verifique se os cabeçalhos 'Matr.' e 'ALUNO' estão presentes.");
           }
 
-          // Import into context
-          importStudents(parsedStudents, selectedClassId);
-          
-          setParsedCount(parsedStudents.length);
-          setParsedPreview(previewNames);
-          setStatus({
-            type: 'success',
-            message: `Planilha de alunos importada com sucesso! ${parsedStudents.length} alunos cadastrados e distribuídos para todos os diários de matérias da turma selecionada.`
+          // Stage for user confirmation
+          setPendingImport({
+            type: 'students',
+            title: 'Planilha de Alunos / Matrículas',
+            itemsCount: parsedStudents.length,
+            previewList: previewNames,
+            data: parsedStudents,
+            fileName: file.name,
+            targetClassId: selectedClassId,
+            successMessage: `Planilha de alunos importada com sucesso! ${parsedStudents.length} alunos cadastrados e matriculados na turma selecionada.`
           });
         } else if (isSubjectSheet) {
           // Parse subjects
@@ -328,13 +374,17 @@ export const SpreadsheetImporter: React.FC = () => {
           const courseId = targetClass?.courseId || 'ENF';
           const mod = targetClass?.module || 1;
           
-          importSubjects(parsedSubjects, courseId, mod);
-          
-          setParsedCount(parsedSubjects.length);
-          setParsedPreview(previewSubjs);
-          setStatus({
-            type: 'success',
-            message: `Grade curricular de ${parsedSubjects.length} disciplinas importada com sucesso para o curso da turma selecionada (Módulo ${mod}).`
+          // Stage for user confirmation
+          setPendingImport({
+            type: 'subjects',
+            title: 'Grade Curricular / Disciplinas',
+            itemsCount: parsedSubjects.length,
+            previewList: previewSubjs,
+            data: parsedSubjects,
+            fileName: file.name,
+            targetCourseId: courseId,
+            targetModule: mod,
+            successMessage: `Grade curricular de ${parsedSubjects.length} disciplinas importada com sucesso para o curso da turma selecionada (Módulo ${mod}).`
           });
         } else {
           throw new Error("Não conseguimos identificar o formato da planilha automaticamente. Certifique-se de que ela contém uma coluna com 'Matr.' e outra com 'ALUNO' para alunos, ou 'Disciplina' e 'Carga' para matérias.");
@@ -345,7 +395,6 @@ export const SpreadsheetImporter: React.FC = () => {
           type: 'error',
           message: err.message || 'Erro inesperado ao processar o arquivo Excel.'
         });
-      } finally {
         setIsLoading(false);
       }
     };
@@ -372,7 +421,7 @@ export const SpreadsheetImporter: React.FC = () => {
     }
   };
 
-  // Predefined dataset loaders (Simulation with real import trigger)
+  // Predefined dataset loaders
   const loadDefaultStudents = () => {
     const demoStudents = [
       { name: 'CARLOS ROBERTO G. DO NASCIMENTO (MEGAN)', enrollment: '26101013', email: 'carlos.megan@aluno.oc.com' },
@@ -390,13 +439,15 @@ export const SpreadsheetImporter: React.FC = () => {
       { name: 'THALLITA SOUSA CRUZ', enrollment: '26101048', email: 'thallita.cruz@aluno.oc.com' },
       { name: 'PATRICIA AGUIAR RODRIGUES DA SILVA', enrollment: '26101050', email: 'patricia.aguiar@aluno.oc.com' }
     ];
-    importStudents(demoStudents, selectedClassId);
-    setFileName('ALUNOS_ENFERMAGEM_1MAT.xlsx');
-    setParsedCount(demoStudents.length);
-    setParsedPreview(demoStudents.map(s => `${s.enrollment} - ${s.name}`));
-    setStatus({ 
-      type: 'success', 
-      message: 'Planilha de Alunos carregada com sucesso! 14 alunos cadastrados e distribuídos para todos os diários da turma selecionada.' 
+    setPendingImport({
+      type: 'students',
+      title: 'Modelo - Planilha de Alunos Real',
+      itemsCount: demoStudents.length,
+      previewList: demoStudents.map(s => `${s.enrollment} - ${s.name}`),
+      data: demoStudents,
+      fileName: 'ALUNOS_ENFERMAGEM_1MAT.xlsx',
+      targetClassId: selectedClassId,
+      successMessage: 'Planilha de Alunos carregada com sucesso! 14 alunos cadastrados e distribuídos para a turma.'
     });
   };
 
@@ -413,13 +464,16 @@ export const SpreadsheetImporter: React.FC = () => {
     const targetClass = classes.find(c => c.id === selectedClassId);
     const courseId = targetClass?.courseId || 'ENF';
     const mod = targetClass?.module || 1;
-    importSubjects(demoSubjects, courseId, mod);
-    setFileName('DISCIPLINAS_CARGA_HORARIA.xlsx');
-    setParsedCount(demoSubjects.length);
-    setParsedPreview(demoSubjects.map(s => `${s.name} (${s.workload}h)`));
-    setStatus({ 
-      type: 'success', 
-      message: `Grade curricular de ${demoSubjects.length} disciplinas importada com sucesso para o Módulo ${mod}!` 
+    setPendingImport({
+      type: 'subjects',
+      title: 'Modelo - Grade Curricular',
+      itemsCount: demoSubjects.length,
+      previewList: demoSubjects.map(s => `${s.name} (${s.workload}h)`),
+      data: demoSubjects,
+      fileName: 'DISCIPLINAS_CARGA_HORARIA.xlsx',
+      targetCourseId: courseId,
+      targetModule: mod,
+      successMessage: `Grade curricular de ${demoSubjects.length} disciplinas importada com sucesso para o Módulo ${mod}!`
     });
   };
 
@@ -430,13 +484,14 @@ export const SpreadsheetImporter: React.FC = () => {
       { id: '3', minGrade: 60, maxGrade: 75, letter: 'C', description: 'Regular' },
       { id: '4', minGrade: 0, maxGrade: 59, letter: 'D', description: 'Insuficiente' }
     ];
-    importConcepts(demoConcepts);
-    setFileName('CONCEITOS_AVALIACAO.xlsx');
-    setParsedCount(demoConcepts.length);
-    setParsedPreview(demoConcepts.map(c => `Nota ${c.minGrade}-${c.maxGrade} = Conceito ${c.letter}`));
-    setStatus({ 
-      type: 'success', 
-      message: 'Planilha de conceitos e regras institucionais sincronizada com sucesso!' 
+    setPendingImport({
+      type: 'concepts',
+      title: 'Modelo - Tabela de Conceitos',
+      itemsCount: demoConcepts.length,
+      previewList: demoConcepts.map(c => `Nota ${c.minGrade}-${c.maxGrade} = Conceito ${c.letter}`),
+      data: demoConcepts,
+      fileName: 'CONCEITOS_AVALIACAO.xlsx',
+      successMessage: 'Planilha de conceitos e regras institucionais sincronizada com sucesso!'
     });
   };
 
@@ -626,6 +681,78 @@ export const SpreadsheetImporter: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {pendingImport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl relative overflow-hidden"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 rounded-2xl">
+                <AlertCircle className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-white">Confirmação de Importação</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Confirme o semestre de matrícula para os diários</p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 rounded-2xl mb-5 text-center">
+              <p className="text-base font-bold text-slate-800 dark:text-slate-100 leading-snug">
+                Tem certeza de que deseja importar esta turma para o semestre <span className="text-blue-700 dark:text-blue-400 underline font-black">{currentPeriod}</span>?
+              </p>
+            </div>
+
+            <div className="space-y-2 mb-6 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Tipo:</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{pendingImport.title}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Turma Destino:</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  {classes.find(c => c.id === pendingImport.targetClassId)?.name || 'Turma Selecionada'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Semestre Oficial:</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400">{currentPeriod}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Total de Registros:</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">{pendingImport.itemsCount} itens</span>
+              </div>
+              <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                ✓ A turma e diários ficarão registrados no semestre <strong>{currentPeriod}</strong> e permanecerão <strong>100% liberados para edições de notas e faltas</strong>.
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingImport(null);
+                  setIsLoading(false);
+                }}
+                className="flex-1 py-3 px-4 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmSpreadsheetImport}
+                className="flex-1 py-3 px-4 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                <span>Sim, importar</span>
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
