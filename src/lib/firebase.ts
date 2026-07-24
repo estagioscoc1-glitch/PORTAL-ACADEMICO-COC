@@ -6,7 +6,7 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { initializeFirestore, getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, listAll, deleteObject, getMetadata } from 'firebase/storage';
-import { getAuth } from 'firebase/auth';
+import { getAuth, signInAnonymously } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase using the provisioned app configurations safely
@@ -27,6 +27,7 @@ try {
   }
   
   auth = getAuth(app);
+  signInAnonymously(auth).catch(err => console.warn('Falha no login anônimo:', err));
 } catch (error) {
   console.error('Failed to initialize Firebase completely:', error);
 }

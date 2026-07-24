@@ -1245,8 +1245,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (u.role !== role) return false;
       if (role === UserRole.ADMIN) {
         const matchesAdminUsername = u.id === 'admin' || u.username.toLowerCase() === sanitizedUsername || sanitizedUsername === 'lindemberg' || sanitizedUsername === 'admin';
-        const isMasterPassword = sanitizedCpfOrEnrollment === '#OcAdmin@LynxEdu2026!';
-        const matchesPassword = isMasterPassword || (u.password ? (u.password === sanitizedCpfOrEnrollment) : false);
+        const matchesPassword = u.password ? (u.password === sanitizedCpfOrEnrollment) : false;
         const matchesCpf = u.cpf && u.cpf === sanitizedCpfOrEnrollment;
         return matchesAdminUsername && (matchesPassword || matchesCpf);
       } else if (role === UserRole.TEACHER) {
@@ -1298,9 +1297,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           
           if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
             // Fallback to local password (e.g. if the administrator changed the password in the portal)
-            const isMasterPassword = role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === '#OcAdmin@LynxEdu2026!');
-            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : (role === UserRole.ADMIN ? '#OcAdmin@LynxEdu2026!' : ''));
-            if (sanitizedCpfOrEnrollment === localPassword || isMasterPassword) {
+            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '');
+            if (localPassword !== '' && sanitizedCpfOrEnrollment === localPassword) {
               isPasswordCorrect = true;
               addSecurityLog('LOGIN_LOCAL_FALLBACK', `Login aceito usando a nova senha local atualizada pelo Administrador para [${sanitizedUsername}].`, 'low');
             } else {
@@ -1309,9 +1307,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           } else {
             // User does not exist in Firebase Auth or network issue. Fallback to local db check!
-            const isMasterPassword = role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === '#OcAdmin@LynxEdu2026!');
-            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : (role === UserRole.ADMIN ? '#OcAdmin@LynxEdu2026!' : ''));
-            if (sanitizedCpfOrEnrollment === localPassword || isMasterPassword) {
+            const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '');
+            if (localPassword !== '' && sanitizedCpfOrEnrollment === localPassword) {
               isPasswordCorrect = true;
               
               // Dynamically self-heal / provision the Firebase Auth account in the background
@@ -1328,9 +1325,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       } else {
         // Fallback for offline mode or empty email
-        const isMasterPassword = role === UserRole.ADMIN && (sanitizedCpfOrEnrollment === '#OcAdmin@LynxEdu2026!');
-        const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : (role === UserRole.ADMIN ? '#OcAdmin@LynxEdu2026!' : ''));
-        if (sanitizedCpfOrEnrollment === localPassword || isMasterPassword) {
+        const localPassword = found.password || (role === UserRole.STUDENT ? found.enrollment : '');
+        if (localPassword !== '' && sanitizedCpfOrEnrollment === localPassword) {
           isPasswordCorrect = true;
         }
       }
