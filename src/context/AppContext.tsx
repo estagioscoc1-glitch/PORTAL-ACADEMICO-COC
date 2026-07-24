@@ -1571,6 +1571,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setClasses(prev => prev.filter(c => c.id !== id));
     setGrades(prev => prev.filter(g => g.classId !== id));
     setAttendance(prev => prev.filter(a => a.classId !== id));
+    setDirectAbsences(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(key => {
+        if (key.startsWith(`${id}_`)) {
+          delete next[key];
+        }
+      });
+      return next;
+    });
     if (activeClassId === id) {
       setActiveClassId(null);
     }
@@ -1630,6 +1639,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSubjects(prev => prev.filter(s => s.id !== id));
     setGrades(prev => prev.filter(g => g.subjectId !== id));
     setAttendance(prev => prev.filter(a => a.subjectId !== id));
+    setDirectAbsences(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(key => {
+        if (key.includes(`_${id}_`)) {
+          delete next[key];
+        }
+      });
+      return next;
+    });
     if (activeSubjectId === id) {
       setActiveSubjectId(null);
     }
@@ -1668,6 +1686,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteUser = (id: string) => {
     const userToDelete = users.find(u => u.id === id);
     setUsers(prev => prev.filter(u => u.id !== id));
+    setGrades(prev => prev.filter(g => g.studentId !== id));
+    setAttendance(prev => prev.map(session => {
+      if (!session.records || !(id in session.records)) return session;
+      const newRecords = { ...session.records };
+      delete newRecords[id];
+      return { ...session, records: newRecords };
+    }));
+    setDirectAbsences(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(key => {
+        if (key.endsWith(`_${id}`)) {
+          delete next[key];
+        }
+      });
+      return next;
+    });
     addSecurityLog('USUARIO_REMOVIDO', `Usuário ${userToDelete?.name || ''} (ID: ${id}) foi excluído do sistema.`, 'medium');
   };
 
@@ -2917,7 +2951,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const undoHistoricalImports = (): { removedClassesCount: number; removedStudentsCount: number; removedGradesCount: number } => {
     // 1. Identificar todas as ClassSection importadas ou históricas
-    const historicalClasses = classes.filter(c => c.isImported === true || c.closedDefinitive === true || c.code?.startsWith('HIST-') || c.code?.startsWith('IMP-'));
+    const historicalClasses = classes.filter(c => c.isImported === true || c.code?.startsWith('HIST-') || c.code?.startsWith('IMP-'));
     const historicalClassIds = new Set(historicalClasses.map(c => c.id));
     const removedClassesCount = historicalClasses.length;
 
