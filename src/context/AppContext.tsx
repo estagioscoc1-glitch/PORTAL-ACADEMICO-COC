@@ -19,13 +19,14 @@ import { safeLocalStorage } from '../lib/safeStorage';
 import { 
   saveStateToCloud, loadStateFromCloud, SystemStatePayload,
   uploadBackupToStorage, listBackupsFromStorage, deleteBackupFromStorage, StorageBackupFile,
-  auth, db
+  auth, db, isPermissionError
 } from '../lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { 
   sendPasswordResetEmail, 
   signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword 
+  createUserWithEmailAndPassword,
+  onAuthStateChanged
 } from 'firebase/auth';
 
 function safeJsonParse<T>(savedValue: string | null, fallback: T): T {
@@ -749,200 +750,232 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    setCloudBackupStatus('syncing');
+    let unsubscribeSnapshot: (() => void) | undefined;
 
-    const stateDocRef = doc(db, 'academic_portal', 'state_node');
+    const attachSnapshotListener = () => {
+      if (unsubscribeSnapshot) {
+        try { unsubscribeSnapshot(); } catch (e) {}
+        unsubscribeSnapshot = undefined;
+      }
 
-    let unsubscribe: (() => void) | undefined;
+      setCloudBackupStatus('syncing');
+      const stateDocRef = doc(db, 'academic_portal', 'state_node');
 
-    unsubscribe = onSnapshot(stateDocRef, async (docSnap) => {
-      try {
-        if (docSnap.exists()) {
-          // Bypassing local write echoes to avoid recursive overwrites and infinite render cycles
-          if (docSnap.metadata.hasPendingWrites) {
-            return;
-          }
-
-          const state = docSnap.data() as SystemStatePayload;
-
-          // Conflict Resolution: If we have a more recent local modification, do not let older cloud data overwrite it.
-          if (lastLocalWriteTimeRef.current) {
-            const localTime = new Date(lastLocalWriteTimeRef.current).getTime();
-            const cloudTime = state.lastBackupTime ? new Date(state.lastBackupTime).getTime() : 0;
-            if (cloudTime < localTime) {
-              console.log('[onSnapshot] Conflito detectado: O estado local é mais recente do que o recebido da nuvem. Mantendo dados locais.');
+      unsubscribeSnapshot = onSnapshot(stateDocRef, async (docSnap) => {
+        try {
+          if (docSnap.exists()) {
+            // Bypassing local write echoes to avoid recursive overwrites and infinite render cycles
+            if (docSnap.metadata.hasPendingWrites) {
               return;
             }
+
+            const state = docSnap.data() as SystemStatePayload;
+
+            // Conflict Resolution: If we have a more recent local modification, do not let older cloud data overwrite it.
+            if (lastLocalWriteTimeRef.current) {
+              const localTime = new Date(lastLocalWriteTimeRef.current).getTime();
+              const cloudTime = state.lastBackupTime ? new Date(state.lastBackupTime).getTime() : 0;
+              if (cloudTime < localTime) {
+                console.log('[onSnapshot] Conflito detectado: O estado local é mais recente do que o recebido da nuvem. Mantendo dados locais.');
+                return;
+              }
+            }
+
+            // Integrity validation: protect diários against corrupted or completely empty cloud states
+            const isStateValid = state && 
+                                Array.isArray(state.users) && state.users.length > 0 &&
+                                Array.isArray(state.classes) && state.classes.length > 0;
+
+            if (!isStateValid) {
+              console.warn('[onSnapshot] Sincronização em nuvem abortada: Nó de dados recebido é inválido ou está vazio.');
+              setCloudBackupStatus('error');
+              addSecurityLog('SINC_NUVEM_ABORTADA', 'Importação em nuvem abortada por integridade de dados comprometida.', 'medium');
+              return;
+            }
+
+            const currentState = latestStateRef.current;
+
+            const rawUsersFromCloud = state.users !== undefined ? state.users : currentState.users;
+            const validInitialIds = new Set(initialUsers.map(u => u.id));
+            const cleanedCloudUsers = (rawUsersFromCloud || []).filter((u: User) => u.role !== UserRole.STUDENT || validInitialIds.has(u.id) || (!u.id.startsWith('std_25') && !u.id.startsWith('std_21') && !u.id.startsWith('std_22') && !u.id.startsWith('std_23')));
+            const cloudUserIds = new Set(cleanedCloudUsers.map((u: User) => u.id));
+            const missingInitialUsers = initialUsers.filter(u => !cloudUserIds.has(u.id));
+            const healedUsersFromCloud = missingInitialUsers.length > 0
+              ? [...cleanedCloudUsers, ...missingInitialUsers]
+              : cleanedCloudUsers;
+
+            // Build comparison payload (exclude transient states/security logs from matching block)
+            const receivedPayload = {
+              users: healedUsersFromCloud,
+              courses: state.courses !== undefined ? state.courses : currentState.courses,
+              classes: state.classes !== undefined ? state.classes : currentState.classes,
+              subjects: state.subjects !== undefined ? state.subjects : currentState.subjects,
+              grades: state.grades !== undefined ? state.grades : currentState.grades,
+              attendance: state.attendance !== undefined ? state.attendance : currentState.attendance,
+              conceptRanges: state.conceptRanges !== undefined ? state.conceptRanges : currentState.conceptRanges,
+              calendarEvents: state.calendarEvents !== undefined ? state.calendarEvents : currentState.calendarEvents,
+              messages: state.messages !== undefined ? state.messages : currentState.messages,
+              notifications: state.notifications !== undefined ? state.notifications : currentState.notifications,
+              currentPeriod: state.currentPeriod !== undefined ? state.currentPeriod : currentState.currentPeriod,
+              periods: state.periods !== undefined ? state.periods : currentState.periods,
+              simulatedDate: state.simulatedDate !== undefined ? state.simulatedDate : currentState.simulatedDate,
+              autoLockEnabled: state.autoLockEnabled !== undefined ? state.autoLockEnabled : currentState.autoLockEnabled,
+              declarationConfigs: state.declarationConfigs !== undefined ? state.declarationConfigs : currentState.declarationConfigs,
+              studentDocuments: state.studentDocuments !== undefined ? state.studentDocuments : currentState.studentDocuments,
+              internships: state.internships !== undefined ? state.internships : currentState.internships,
+              adminPasswordResetDone: state.adminPasswordResetDone !== undefined ? state.adminPasswordResetDone : currentState.adminPasswordResetDone
+            };
+            const receivedPayloadStr = JSON.stringify(receivedPayload);
+            lastReceivedPayloadRef.current = receivedPayloadStr;
+
+            // Apply state changes to React and safeLocalStorage
+            if (state.users) {
+              setUsers(healedUsersFromCloud);
+              safeLocalStorage.setItem('oc_users', JSON.stringify(healedUsersFromCloud));
+            }
+            if (state.courses) { setCourses(state.courses); safeLocalStorage.setItem('oc_courses', JSON.stringify(state.courses)); }
+            if (state.classes) { setClasses(state.classes); safeLocalStorage.setItem('oc_classes', JSON.stringify(state.classes)); }
+            if (state.subjects) { setSubjects(state.subjects); safeLocalStorage.setItem('oc_subjects', JSON.stringify(state.subjects)); }
+            if (state.grades) { setGrades(state.grades); safeLocalStorage.setItem('oc_grades', JSON.stringify(state.grades)); }
+            if (state.attendance) { setAttendance(state.attendance); safeLocalStorage.setItem('oc_attendance', JSON.stringify(state.attendance)); }
+            if (state.conceptRanges) { setConceptRanges(state.conceptRanges); safeLocalStorage.setItem('oc_concept_ranges', JSON.stringify(state.conceptRanges)); }
+            if (state.calendarEvents) { setCalendarEvents(state.calendarEvents); safeLocalStorage.setItem('oc_calendar_events', JSON.stringify(state.calendarEvents)); }
+            if (state.messages) { setMessages(state.messages); safeLocalStorage.setItem('oc_messages', JSON.stringify(state.messages)); }
+            if (state.notifications) { setNotifications(state.notifications); safeLocalStorage.setItem('oc_notifications', JSON.stringify(state.notifications)); }
+            if (state.currentPeriod) { setCurrentPeriod(state.currentPeriod); safeLocalStorage.setItem('oc_current_period', state.currentPeriod); }
+            if (state.periods) { setPeriods(state.periods); safeLocalStorage.setItem('oc_periods', JSON.stringify(state.periods)); }
+            if (state.simulatedDate) { setSimulatedDate(state.simulatedDate); safeLocalStorage.setItem('oc_simulated_date', state.simulatedDate); }
+            if (state.autoLockEnabled !== undefined) { setAutoLockEnabled(state.autoLockEnabled); safeLocalStorage.setItem('oc_auto_lock_enabled', state.autoLockEnabled ? 'true' : 'false'); }
+            if (state.securityLogs) { setSecurityLogs(state.securityLogs); safeLocalStorage.setItem('oc_security_logs', JSON.stringify(state.securityLogs)); }
+            if (state.declarationConfigs) { setDeclarationConfigs(state.declarationConfigs); safeLocalStorage.setItem('oc_declaration_configs', JSON.stringify(state.declarationConfigs)); }
+            if (state.studentDocuments) { setStudentDocuments(state.studentDocuments); safeLocalStorage.setItem('oc_student_documents', JSON.stringify(state.studentDocuments)); }
+            if (state.internships) { setInternships(state.internships); safeLocalStorage.setItem('oc_internships', JSON.stringify(state.internships)); }
+            if (state.adminPasswordResetDone !== undefined) {
+              setAdminPasswordResetDone(state.adminPasswordResetDone);
+              safeLocalStorage.setItem('oc_admin_reset_done', state.adminPasswordResetDone ? 'true' : 'false');
+            }
+
+            if (state.lastBackupTime) {
+              setLastCloudBackupTime(state.lastBackupTime);
+              safeLocalStorage.setItem('oc_last_cloud_backup_time', state.lastBackupTime);
+            }
+
+            setCloudBackupStatus('success');
+            setHasReceivedInitialCloudSync(true);
+          } else {
+            setCloudBackupStatus('idle');
+            // If Firestore database is empty, seed it with initial setup data
+            const payload: SystemStatePayload = {
+              users, courses, classes, subjects, grades, attendance,
+              conceptRanges, calendarEvents, messages, notifications,
+              currentPeriod, periods, simulatedDate, autoLockEnabled, securityLogs,
+              declarationConfigs, studentDocuments, internships,
+              adminPasswordResetDone
+            };
+            await saveStateToCloud(payload);
+            addSecurityLog('SINC_NUVEM_CRIACAO', 'Primeiro nó de dados criado e persistido com sucesso na nuvem Firestore.', 'low');
+            setHasReceivedInitialCloudSync(true);
           }
-
-          // Integrity validation: protect diários against corrupted or completely empty cloud states
-          const isStateValid = state && 
-                              Array.isArray(state.users) && state.users.length > 0 &&
-                              Array.isArray(state.classes) && state.classes.length > 0;
-
-          if (!isStateValid) {
-            console.warn('[onSnapshot] Sincronização em nuvem abortada: Nó de dados recebido é inválido ou está vazio.');
-            setCloudBackupStatus('error');
-            addSecurityLog('SINC_NUVEM_ABORTADA', 'Importação em nuvem abortada por integridade de dados comprometida.', 'medium');
-            return;
+        } catch (err: any) {
+          console.error('Erro ao processar dados recebidos do Firestore:', err);
+          setCloudBackupStatus('error');
+        } finally {
+          // Enforce post-load validation on the final states to protect against empty/null databases
+          setUsers(prev => {
+            if (!prev || !Array.isArray(prev) || prev.length === 0) {
+              console.warn('[postLoadDefense] Coleção de usuários inválida ou nula, restaurando padrão.');
+              return initialUsers;
+            }
+            const validInitialIds = new Set(initialUsers.map(u => u.id));
+            const cleaned = prev.filter(u => u.role !== UserRole.STUDENT || validInitialIds.has(u.id) || (!u.id.startsWith('std_25') && !u.id.startsWith('std_21') && !u.id.startsWith('std_22') && !u.id.startsWith('std_23')));
+            const existingIds = new Set(cleaned.map(u => u.id));
+            const missingUsers = initialUsers.filter(u => !existingIds.has(u.id));
+            const healed = missingUsers.length > 0 ? [...cleaned, ...missingUsers] : cleaned;
+            return healed.map(u => u.id === 'admin' && !u.password ? { ...u, password: 'Admin@Lynx2026' } : u);
+          });
+          setClasses(prev => {
+            if (!prev || !Array.isArray(prev) || prev.length === 0) {
+              console.warn('[postLoadDefense] Coleção de turmas inválida ou nula, restaurando padrão.');
+              return initialClasses;
+            }
+            return prev;
+          });
+          setGrades(prev => {
+            if (!prev || !Array.isArray(prev)) {
+              console.warn('[postLoadDefense] Coleção de notas inválida ou nula, restaurando padrão.');
+              return initialGrades;
+            }
+            return prev;
+          });
+          // Graceful delay to prevent flickering on ultra-fast loads
+          setTimeout(() => {
+            setIsLoading(false);
+          }, 400);
+        }
+      }, (err) => {
+        if (unsubscribeSnapshot) {
+          try {
+            unsubscribeSnapshot();
+          } catch (e) {
+            console.error('Erro ao cancelar inscrição do Firestore:', e);
           }
+        }
+        const isQuota = err?.code === 'resource-exhausted' || 
+                        err?.message?.toLowerCase().includes('quota') || 
+                        err?.message?.toLowerCase().includes('exhausted') ||
+                        err?.message?.toLowerCase().includes('limit exceeded');
+        const isOffline = err?.message?.toLowerCase().includes('offline') || 
+                          err?.code === 'unavailable' || 
+                          err?.message?.toLowerCase().includes('network') || 
+                          err?.message?.toLowerCase().includes('unreachable');
+        const isPermission = isPermissionError(err);
 
-          const currentState = latestStateRef.current;
-
-          const rawUsersFromCloud = state.users !== undefined ? state.users : currentState.users;
-          const validInitialIds = new Set(initialUsers.map(u => u.id));
-          const cleanedCloudUsers = (rawUsersFromCloud || []).filter((u: User) => u.role !== UserRole.STUDENT || validInitialIds.has(u.id) || (!u.id.startsWith('std_25') && !u.id.startsWith('std_21') && !u.id.startsWith('std_22') && !u.id.startsWith('std_23')));
-          const cloudUserIds = new Set(cleanedCloudUsers.map((u: User) => u.id));
-          const missingInitialUsers = initialUsers.filter(u => !cloudUserIds.has(u.id));
-          const healedUsersFromCloud = missingInitialUsers.length > 0
-            ? [...cleanedCloudUsers, ...missingInitialUsers]
-            : cleanedCloudUsers;
-
-          // Build comparison payload (exclude transient states/security logs from matching block)
-          const receivedPayload = {
-            users: healedUsersFromCloud,
-            courses: state.courses !== undefined ? state.courses : currentState.courses,
-            classes: state.classes !== undefined ? state.classes : currentState.classes,
-            subjects: state.subjects !== undefined ? state.subjects : currentState.subjects,
-            grades: state.grades !== undefined ? state.grades : currentState.grades,
-            attendance: state.attendance !== undefined ? state.attendance : currentState.attendance,
-            conceptRanges: state.conceptRanges !== undefined ? state.conceptRanges : currentState.conceptRanges,
-            calendarEvents: state.calendarEvents !== undefined ? state.calendarEvents : currentState.calendarEvents,
-            messages: state.messages !== undefined ? state.messages : currentState.messages,
-            notifications: state.notifications !== undefined ? state.notifications : currentState.notifications,
-            currentPeriod: state.currentPeriod !== undefined ? state.currentPeriod : currentState.currentPeriod,
-            periods: state.periods !== undefined ? state.periods : currentState.periods,
-            simulatedDate: state.simulatedDate !== undefined ? state.simulatedDate : currentState.simulatedDate,
-            autoLockEnabled: state.autoLockEnabled !== undefined ? state.autoLockEnabled : currentState.autoLockEnabled,
-            declarationConfigs: state.declarationConfigs !== undefined ? state.declarationConfigs : currentState.declarationConfigs,
-            studentDocuments: state.studentDocuments !== undefined ? state.studentDocuments : currentState.studentDocuments,
-            internships: state.internships !== undefined ? state.internships : currentState.internships,
-            adminPasswordResetDone: state.adminPasswordResetDone !== undefined ? state.adminPasswordResetDone : currentState.adminPasswordResetDone
-          };
-          const receivedPayloadStr = JSON.stringify(receivedPayload);
-          lastReceivedPayloadRef.current = receivedPayloadStr;
-
-          // Apply state changes to React and safeLocalStorage
-          if (state.users) {
-            setUsers(healedUsersFromCloud);
-            safeLocalStorage.setItem('oc_users', JSON.stringify(healedUsersFromCloud));
-          }
-          if (state.courses) { setCourses(state.courses); safeLocalStorage.setItem('oc_courses', JSON.stringify(state.courses)); }
-          if (state.classes) { setClasses(state.classes); safeLocalStorage.setItem('oc_classes', JSON.stringify(state.classes)); }
-          if (state.subjects) { setSubjects(state.subjects); safeLocalStorage.setItem('oc_subjects', JSON.stringify(state.subjects)); }
-          if (state.grades) { setGrades(state.grades); safeLocalStorage.setItem('oc_grades', JSON.stringify(state.grades)); }
-          if (state.attendance) { setAttendance(state.attendance); safeLocalStorage.setItem('oc_attendance', JSON.stringify(state.attendance)); }
-          if (state.conceptRanges) { setConceptRanges(state.conceptRanges); safeLocalStorage.setItem('oc_concept_ranges', JSON.stringify(state.conceptRanges)); }
-          if (state.calendarEvents) { setCalendarEvents(state.calendarEvents); safeLocalStorage.setItem('oc_calendar_events', JSON.stringify(state.calendarEvents)); }
-          if (state.messages) { setMessages(state.messages); safeLocalStorage.setItem('oc_messages', JSON.stringify(state.messages)); }
-          if (state.notifications) { setNotifications(state.notifications); safeLocalStorage.setItem('oc_notifications', JSON.stringify(state.notifications)); }
-          if (state.currentPeriod) { setCurrentPeriod(state.currentPeriod); safeLocalStorage.setItem('oc_current_period', state.currentPeriod); }
-          if (state.periods) { setPeriods(state.periods); safeLocalStorage.setItem('oc_periods', JSON.stringify(state.periods)); }
-          if (state.simulatedDate) { setSimulatedDate(state.simulatedDate); safeLocalStorage.setItem('oc_simulated_date', state.simulatedDate); }
-          if (state.autoLockEnabled !== undefined) { setAutoLockEnabled(state.autoLockEnabled); safeLocalStorage.setItem('oc_auto_lock_enabled', state.autoLockEnabled ? 'true' : 'false'); }
-          if (state.securityLogs) { setSecurityLogs(state.securityLogs); safeLocalStorage.setItem('oc_security_logs', JSON.stringify(state.securityLogs)); }
-          if (state.declarationConfigs) { setDeclarationConfigs(state.declarationConfigs); safeLocalStorage.setItem('oc_declaration_configs', JSON.stringify(state.declarationConfigs)); }
-          if (state.studentDocuments) { setStudentDocuments(state.studentDocuments); safeLocalStorage.setItem('oc_student_documents', JSON.stringify(state.studentDocuments)); }
-          if (state.internships) { setInternships(state.internships); safeLocalStorage.setItem('oc_internships', JSON.stringify(state.internships)); }
-          if (state.adminPasswordResetDone !== undefined) {
-            setAdminPasswordResetDone(state.adminPasswordResetDone);
-            safeLocalStorage.setItem('oc_admin_reset_done', state.adminPasswordResetDone ? 'true' : 'false');
-          }
-
-          if (state.lastBackupTime) {
-            setLastCloudBackupTime(state.lastBackupTime);
-            safeLocalStorage.setItem('oc_last_cloud_backup_time', state.lastBackupTime);
-          }
-
-          setCloudBackupStatus('success');
-          setHasReceivedInitialCloudSync(true);
+        if (isQuota) {
+          console.error('Cota do Firestore esgotada:', err);
+          setCloudBackupStatus('quota_exceeded');
+          addSecurityLog('SINC_NUVEM_COTA', 'Limite de cota de leitura/escrita diária do Firestore atingido.', 'medium');
+        } else if (isPermission) {
+          console.warn('Sincronização em nuvem aguardando autenticação (ou provedor "Anônimo" pendente de habilitação no Console do Firebase).');
+          setCloudBackupStatus('offline');
+        } else if (isOffline) {
+          console.warn('Portal acadêmico operando em modo offline-first (Firestore indisponível).');
+          setCloudBackupStatus('offline');
+          addSecurityLog('SINC_NUVEM_OFFLINE', 'Portal operando em modo local/offline (Firestore temporariamente indisponível).', 'low');
         } else {
-          setCloudBackupStatus('idle');
-          // If Firestore database is empty, seed it with initial setup data
-          const payload: SystemStatePayload = {
-            users, courses, classes, subjects, grades, attendance,
-            conceptRanges, calendarEvents, messages, notifications,
-            currentPeriod, periods, simulatedDate, autoLockEnabled, securityLogs,
-            declarationConfigs, studentDocuments, internships,
-            adminPasswordResetDone
-          };
-          await saveStateToCloud(payload);
-          addSecurityLog('SINC_NUVEM_CRIACAO', 'Primeiro nó de dados criado e persistido com sucesso na nuvem Firestore.', 'low');
-          setHasReceivedInitialCloudSync(true);
+          console.error('Erro na escuta de atualizações em nuvem:', err);
+          setCloudBackupStatus('error');
+          addSecurityLog('SINC_NUVEM_FALHA', 'Falha na conexão de escuta do banco em nuvem.', 'medium');
         }
-      } catch (err: any) {
-        console.error('Erro ao processar dados recebidos do Firestore:', err);
-        setCloudBackupStatus('error');
-      } finally {
-        // Enforce post-load validation on the final states to protect against empty/null databases
-        setUsers(prev => {
-          if (!prev || !Array.isArray(prev) || prev.length === 0) {
-            console.warn('[postLoadDefense] Coleção de usuários inválida ou nula, restaurando padrão.');
-            return initialUsers;
-          }
-          const validInitialIds = new Set(initialUsers.map(u => u.id));
-          const cleaned = prev.filter(u => u.role !== UserRole.STUDENT || validInitialIds.has(u.id) || (!u.id.startsWith('std_25') && !u.id.startsWith('std_21') && !u.id.startsWith('std_22') && !u.id.startsWith('std_23')));
-          const existingIds = new Set(cleaned.map(u => u.id));
-          const missingUsers = initialUsers.filter(u => !existingIds.has(u.id));
-          return missingUsers.length > 0 ? [...cleaned, ...missingUsers] : cleaned;
-        });
-        setClasses(prev => {
-          if (!prev || !Array.isArray(prev) || prev.length === 0) {
-            console.warn('[postLoadDefense] Coleção de turmas inválida ou nula, restaurando padrão.');
-            return initialClasses;
-          }
-          return prev;
-        });
-        setGrades(prev => {
-          if (!prev || !Array.isArray(prev)) {
-            console.warn('[postLoadDefense] Coleção de notas inválida ou nula, restaurando padrão.');
-            return initialGrades;
-          }
-          return prev;
-        });
-        // Graceful delay to prevent flickering on ultra-fast loads
-        setTimeout(() => {
-          setIsLoading(false);
-        }, 400);
-      }
-    }, (err) => {
-      if (unsubscribe) {
-        try {
-          unsubscribe();
-        } catch (e) {
-          console.error('Erro ao cancelar inscrição do Firestore:', e);
+        setIsLoading(false);
+      });
+    };
+
+    let unsubscribeAuth: (() => void) | undefined;
+    if (auth) {
+      unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+        if (user) {
+          attachSnapshotListener();
+        } else {
+          attachSnapshotListener();
         }
-      }
-      const isQuota = err?.code === 'resource-exhausted' || 
-                      err?.message?.toLowerCase().includes('quota') || 
-                      err?.message?.toLowerCase().includes('exhausted') ||
-                      err?.message?.toLowerCase().includes('limit exceeded');
-      const isOffline = err?.message?.toLowerCase().includes('offline') || 
-                        err?.code === 'unavailable' || 
-                        err?.message?.toLowerCase().includes('network') || 
-                        err?.message?.toLowerCase().includes('unreachable');
-      if (isQuota) {
-        console.error('Cota do Firestore esgotada:', err);
-        setCloudBackupStatus('quota_exceeded');
-        addSecurityLog('SINC_NUVEM_COTA', 'Limite de cota de leitura/escrita diária do Firestore atingido.', 'medium');
-      } else if (isOffline) {
-        console.warn('Portal acadêmico operando em modo offline-first (Firestore indisponível).');
-        setCloudBackupStatus('offline');
-        addSecurityLog('SINC_NUVEM_OFFLINE', 'Portal operando em modo local/offline (Firestore temporariamente indisponível).', 'low');
-      } else {
-        console.error('Erro na escuta de atualizações em nuvem:', err);
-        setCloudBackupStatus('error');
-        addSecurityLog('SINC_NUVEM_FALHA', 'Falha na conexão de escuta do banco em nuvem.', 'medium');
-      }
-      setIsLoading(false);
-    });
+      });
+    } else {
+      attachSnapshotListener();
+    }
 
     return () => {
-      if (unsubscribe) {
+      if (unsubscribeSnapshot) {
         try {
-          unsubscribe();
+          unsubscribeSnapshot();
         } catch (e) {
           console.error('Erro ao limpar inscrição do Firestore no unmount:', e);
+        }
+      }
+      if (unsubscribeAuth) {
+        try {
+          unsubscribeAuth();
+        } catch (e) {
+          console.error('Erro ao limpar inscrição de auth no unmount:', e);
         }
       }
     };

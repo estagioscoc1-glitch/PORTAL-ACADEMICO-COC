@@ -45,7 +45,7 @@ export const initialUsers: User[] = [
     username: 'lindemberg',
     email: 'administracao@lynxedu.com.br',
     role: UserRole.ADMIN,
-    password: '',
+    password: 'Admin@Lynx2026',
     active: true
   },
   ...allPdfStudentUsers
