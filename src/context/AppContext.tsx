@@ -562,7 +562,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const baseList = (val && Array.isArray(val) && val.length > 0) ? val : initialUsers;
     const validInitialIds = new Set(initialUsers.map(u => u.id));
     // Keep admin, users registered directly by the user, and initialUsers (like Aluno Teste). Filter out obsolete std_ imported students.
-    const filtered = baseList.filter(u => u.role !== UserRole.STUDENT || validInitialIds.has(u.id) || (!u.id.startsWith('std_25') && !u.id.startsWith('std_21') && !u.id.startsWith('std_22') && !u.id.startsWith('std_23')));
+    const filtered = baseList.filter(u => u.id !== 'std_aluno_teste' && (u.role !== UserRole.STUDENT || validInitialIds.has(u.id) || (!u.id.startsWith('std_25') && !u.id.startsWith('std_21') && !u.id.startsWith('std_22') && !u.id.startsWith('std_23'))));
     const existingIds = new Set(filtered.map(u => u.id));
     const missingUsers = initialUsers.filter(u => !existingIds.has(u.id));
     const result = missingUsers.length > 0 ? [...filtered, ...missingUsers] : filtered;
@@ -798,7 +798,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             const rawUsersFromCloud = state.users !== undefined ? state.users : currentState.users;
             const validInitialIds = new Set(initialUsers.map(u => u.id));
-            const cleanedCloudUsers = (rawUsersFromCloud || []).filter((u: User) => u.role !== UserRole.STUDENT || validInitialIds.has(u.id) || (!u.id.startsWith('std_25') && !u.id.startsWith('std_21') && !u.id.startsWith('std_22') && !u.id.startsWith('std_23')));
+            const cleanedCloudUsers = (rawUsersFromCloud || []).filter((u: User) => u.id !== 'std_aluno_teste' && (u.role !== UserRole.STUDENT || validInitialIds.has(u.id) || (!u.id.startsWith('std_25') && !u.id.startsWith('std_21') && !u.id.startsWith('std_22') && !u.id.startsWith('std_23'))));
             const cloudUserIds = new Set(cleanedCloudUsers.map((u: User) => u.id));
             const missingInitialUsers = initialUsers.filter(u => !cloudUserIds.has(u.id));
             const healedUsersFromCloud = missingInitialUsers.length > 0
@@ -890,7 +890,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               return initialUsers;
             }
             const validInitialIds = new Set(initialUsers.map(u => u.id));
-            const cleaned = prev.filter(u => u.role !== UserRole.STUDENT || validInitialIds.has(u.id) || (!u.id.startsWith('std_25') && !u.id.startsWith('std_21') && !u.id.startsWith('std_22') && !u.id.startsWith('std_23')));
+            const cleaned = prev.filter(u => u.id !== 'std_aluno_teste' && (u.role !== UserRole.STUDENT || validInitialIds.has(u.id) || (!u.id.startsWith('std_25') && !u.id.startsWith('std_21') && !u.id.startsWith('std_22') && !u.id.startsWith('std_23'))));
             const existingIds = new Set(cleaned.map(u => u.id));
             const missingUsers = initialUsers.filter(u => !existingIds.has(u.id));
             const healed = missingUsers.length > 0 ? [...cleaned, ...missingUsers] : cleaned;

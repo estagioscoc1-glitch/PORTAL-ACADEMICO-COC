@@ -271,25 +271,7 @@ export const LoginScreen: React.FC = () => {
                 )}
               </button>
 
-              {role === UserRole.ADMIN && (
-                <div id="admin-reset-trigger-container" className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-center">
-                  <button
-                    type="button"
-                    id="trigger-admin-reset-btn"
-                    onClick={() => {
-                      setShowAdminResetModal(true);
-                      setResetErrorMsg('');
-                      setResetSuccessMsg('');
-                      setNewAdminPassword('');
-                      setOwnerCheckbox(false);
-                    }}
-                    className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-semibold flex items-center gap-1 transition-colors"
-                  >
-                    <KeyRound className="h-3.5 w-3.5" />
-                    Esqueceu a senha? Redefinição Única do Administrador
-                  </button>
-                </div>
-              )}
+
             </form>
           </motion.div>
         </div>

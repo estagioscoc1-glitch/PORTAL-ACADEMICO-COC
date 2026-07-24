@@ -1540,7 +1540,7 @@ export const AdminDashboard: React.FC = () => {
                   Senha de Acesso (Senha Livre)
                 </label>
                 <input 
-                  type="text" 
+                  type="password" 
                   required
                   placeholder="Defina a senha de acesso" 
                   value={userPassword}
@@ -1983,9 +1983,10 @@ export const AdminDashboard: React.FC = () => {
                               />
                             </div>
                             <div>
-                              <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Senha de Acesso</label>
+                              <label className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Nova Senha (Opcional)</label>
                               <input 
-                                type="text"
+                                type="password"
+                                placeholder="Deixe em branco p/ manter a atual"
                                 value={editUserPassword}
                                 onChange={(e) => setEditUserPassword(e.target.value)}
                                 className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-mono text-slate-800 dark:text-white outline-none"
@@ -2037,15 +2038,18 @@ export const AdminDashboard: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => {
-                                updateUser(u.id, {
+                                const userUpdates: any = {
                                   name: editUserName,
                                   email: editUserEmail,
                                   username: editUserUsername,
-                                  password: editUserPassword,
                                   role: editUserRole,
                                   enrollment: editUserEnrollment || undefined,
                                   cpf: editUserCpf || undefined
-                                });
+                                };
+                                if (editUserPassword.trim()) {
+                                  userUpdates.password = editUserPassword.trim();
+                                }
+                                updateUser(u.id, userUpdates);
                                 setEditingUserId(null);
                               }}
                               className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold rounded-lg shadow-sm cursor-pointer"
@@ -2091,7 +2095,7 @@ export const AdminDashboard: React.FC = () => {
                               setEditUserName(u.name);
                               setEditUserEmail(u.email);
                               setEditUserUsername(u.username);
-                              setEditUserPassword(u.password || '');
+                              setEditUserPassword('');
                               setEditUserRole(u.role);
                               setEditUserEnrollment(u.enrollment || '');
                               setEditUserCpf(u.cpf || '');
