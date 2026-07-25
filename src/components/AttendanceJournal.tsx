@@ -638,6 +638,9 @@ export const AttendanceJournal: React.FC = () => {
                 const absStats = getStudentAbsences(stud.id, targetSubject.id);
                 const isOverLimit = absStats.total > maxAbsencesLimit;
                 const isTransferred = stud.classId !== targetClass.id;
+                const studentGrade = grades.find(g => g.studentId === stud.id && g.classId === targetClass.id && g.subjectId === targetSubject.id);
+                const isStudentInactive = studentGrade?.result === 'DISPENSADO' || studentGrade?.result === 'DESISTENTE';
+                const isStudentBlockedForTeacher = currentUser?.role !== 'ADMIN' && isStudentInactive;
 
                 return (
                   <tr key={stud.id} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-all h-12 ${isTransferred ? 'opacity-75 bg-amber-50/10 dark:bg-amber-950/5' : ''}`}>
@@ -654,6 +657,16 @@ export const AttendanceJournal: React.FC = () => {
                             Transferido p/ {classes.find(c => c.id === stud.classId)?.name || 'outra sala'}
                           </span>
                         )}
+                        {!isTransferred && studentGrade?.result === 'DISPENSADO' && (
+                          <span className="text-[8px] text-purple-600 dark:text-purple-400 font-black uppercase tracking-wider mt-0.5 leading-tight">
+                            DISPENSADO
+                          </span>
+                        )}
+                        {!isTransferred && studentGrade?.result === 'DESISTENTE' && (
+                          <span className="text-[8px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-wider mt-0.5 leading-tight">
+                            DESISTENTE
+                          </span>
+                        )}
                         {isOverLimit && !isTransferred && absStats.total > 0 && (
                           <span className="text-[8px] text-red-500 font-black uppercase tracking-wider mt-0.5">
                             Excedeu limite ({maxAbsencesLimit}h)
@@ -668,24 +681,25 @@ export const AttendanceJournal: React.FC = () => {
                     {/* 30 attendance grid cells */}
                     {cols.map((col, colIdx) => {
                       const isAbsent = col.records[stud.id] === 'F';
+                      const isDisabled = isLocked || isTransferred || isStudentBlockedForTeacher;
                       return (
                         <td key={`record-${stud.id}-${colIdx}`} className="py-1 px-0.5 border-r border-slate-150 dark:border-slate-800 text-center w-[40px]">
                           <div className="flex items-center justify-center">
                             <input
                               type="text"
                               readOnly
-                              disabled={isLocked || isTransferred}
+                              disabled={isDisabled}
                               value={isAbsent ? 'F' : '•'}
-                              onKeyDown={(e) => !isTransferred && handleCellKeyDown(e, colIdx, stud.id)}
-                              onClick={() => !isTransferred && handleCellClick(colIdx, stud.id)}
+                              onKeyDown={(e) => !isDisabled && handleCellKeyDown(e, colIdx, stud.id)}
+                              onClick={() => !isDisabled && handleCellClick(colIdx, stud.id)}
                               className={`w-7 h-7 text-center font-mono text-xs font-black rounded-md border outline-none focus:ring-2 transition-all select-none ${
-                                isTransferred
+                                isDisabled
                                   ? 'border-slate-150 bg-slate-50 text-slate-300 cursor-not-allowed dark:border-slate-800 dark:bg-slate-950/20 dark:text-slate-600'
                                   : isAbsent
                                     ? 'border-red-500 bg-red-50 text-red-700 dark:border-red-600 dark:bg-red-950/30 dark:text-red-400 focus:ring-red-500 cursor-pointer'
                                     : 'border-slate-200/80 bg-white dark:bg-slate-900 text-emerald-600 dark:border-slate-750 dark:text-emerald-400 focus:ring-emerald-500 cursor-pointer'
                               }`}
-                              title={isTransferred ? "Não editável (Transferido)" : isAbsent ? "Falta registrada. Clique para alterar para Presença." : "Presença registrada. Clique para alterar para Falta."}
+                              title={isDisabled ? "Não editável" : isAbsent ? "Falta registrada. Clique para alterar para Presença." : "Presença registrada. Clique para alterar para Falta."}
                             />
                           </div>
                         </td>

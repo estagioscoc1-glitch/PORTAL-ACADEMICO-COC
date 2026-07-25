@@ -60,45 +60,28 @@ export const GradeJournal: React.FC = () => {
   );
   const journalGrades = grades.filter(g => g.classId === targetClass.id && g.subjectId === targetSubject.id);
 
-  // Helper to split PF/s1/s2 into sub grades for rendering mock av1-6
-  const getS1Evaluations = (g: any) => {
-    const hasAnyS1 = g.av1 !== null || g.av2 !== null || g.av3 !== null || g.recS1 !== null;
-    if (hasAnyS1) {
-      return {
-        av1: g.av1 !== null ? g.av1 : 0,
-        av2: g.av2 !== null ? g.av2 : 0,
-        av3: g.av3 !== null ? g.av3 : 0
-      };
-    }
-    const parts = [Math.floor(g.s1 / 3), Math.floor(g.s1 / 3), g.s1 - 2 * Math.floor(g.s1 / 3)];
-    return { av1: g.av1 ?? parts[0], av2: g.av2 ?? parts[1], av3: g.av3 ?? parts[2] };
-  };
-
-  const getS2Evaluations = (g: any) => {
-    const hasAnyS2 = g.av4 !== null || g.av5 !== null || g.av6 !== null || g.recS2 !== null;
-    if (hasAnyS2) {
-      return {
-        av4: g.av4 !== null ? g.av4 : 0,
-        av5: g.av5 !== null ? g.av5 : 0,
-        av6: g.av6 !== null ? g.av6 : 0
-      };
-    }
-    const parts = [Math.floor(g.s2 / 3), Math.floor(g.s2 / 3), g.s2 - 2 * Math.floor(g.s2 / 3)];
-    return { av4: g.av4 ?? parts[0], av5: g.av5 ?? parts[1], av6: g.av6 ?? parts[2] };
-  };
-
-  const handleValueChange = (gradeId: string, field: string, val: string) => {
+  const handleValueChange = (gradeId: string, field: string, val: string, studentId?: string) => {
     const cleanDigits = val.replace(/\D/g, '');
     
     if (cleanDigits === '') {
-      updateGrade(gradeId, { [field]: null });
+      updateGrade(gradeId, {
+        [field]: null,
+        studentId,
+        classId: targetClass.id,
+        subjectId: targetSubject.id
+      });
       setSaveStatus('unsaved');
       return;
     }
 
     const maxLimit = field === 'afc' ? 40 : 100;
     const num = Math.min(Math.max(parseInt(cleanDigits, 10) || 0, 0), maxLimit);
-    updateGrade(gradeId, { [field]: num });
+    updateGrade(gradeId, {
+      [field]: num,
+      studentId,
+      classId: targetClass.id,
+      subjectId: targetSubject.id
+    });
     setSaveStatus('unsaved');
   };
 
@@ -315,7 +298,7 @@ export const GradeJournal: React.FC = () => {
                 if (!grade) {
                   // Fallback default grade object so the student is rendered and editable
                   grade = {
-                    id: `grade_${stud.id}_${targetClass.id}_${targetSubject.id}`,
+                    id: `grade:::${stud.id}:::${targetClass.id}:::${targetSubject.id}`,
                     subjectId: targetSubject.id,
                     classId: targetClass.id,
                     studentId: stud.id,
@@ -328,9 +311,6 @@ export const GradeJournal: React.FC = () => {
                 }
 
                 const isTransferred = stud.classId !== targetClass.id;
-
-                const s1Part = getS1Evaluations(grade);
-                const s2Part = getS2Evaluations(grade);
                 const absStats = getStudentAbsences(stud.id, targetSubject.id);
                 const isEvenRow = idx % 2 === 1;
 
@@ -364,22 +344,38 @@ export const GradeJournal: React.FC = () => {
                     }`}>{stud.enrollment}</td>
                     
                     {/* Student Name */}
-                    <td className={`py-2.5 px-3 font-bold text-slate-900 dark:text-white sticky left-[140px] border-r-2 border-slate-300 dark:border-slate-700 z-10 w-[200px] min-w-[200px] max-w-[200px] transition-colors ${
-                      hoveredRow === stud.id 
-                        ? 'bg-slate-100 dark:bg-slate-850' 
-                        : isEvenRow 
-                          ? 'bg-slate-50/70 dark:bg-slate-800/30' 
-                          : 'bg-white dark:bg-slate-900'
-                    }`}>
-                      <div className="flex flex-col min-w-0 max-w-[190px]">
-                        <span className="truncate" title={stud.name}>{stud.name}</span>
-                        {isTransferred && (
-                          <span className="text-[8px] text-amber-600 dark:text-amber-400 font-black uppercase tracking-wider mt-0.5 leading-tight">
-                            Transferido p/ {classes.find(c => c.id === stud.classId)?.name || 'outra sala'}
-                          </span>
-                        )}
-                      </div>
-                    </td>
+                    {(() => {
+                      const isStudentInactive = grade.result === 'DISPENSADO' || grade.result === 'DESISTENTE';
+                      const isStudentBlockedForTeacher = currentUser?.role !== 'ADMIN' && isStudentInactive;
+
+                      return (
+                        <>
+                          <td className={`py-2.5 px-3 font-bold text-slate-900 dark:text-white sticky left-[140px] border-r-2 border-slate-300 dark:border-slate-700 z-10 w-[200px] min-w-[200px] max-w-[200px] transition-colors ${
+                            hoveredRow === stud.id 
+                              ? 'bg-slate-100 dark:bg-slate-850' 
+                              : isEvenRow 
+                                ? 'bg-slate-50/70 dark:bg-slate-800/30' 
+                                : 'bg-white dark:bg-slate-900'
+                          }`}>
+                            <div className="flex flex-col min-w-0 max-w-[190px]">
+                              <span className="truncate" title={stud.name}>{stud.name}</span>
+                              {isTransferred && (
+                                <span className="text-[8px] text-amber-600 dark:text-amber-400 font-black uppercase tracking-wider mt-0.5 leading-tight">
+                                  Transferido p/ {classes.find(c => c.id === stud.classId)?.name || 'outra sala'}
+                                </span>
+                              )}
+                              {!isTransferred && grade.result === 'DISPENSADO' && (
+                                <span className="text-[8px] text-purple-600 dark:text-purple-400 font-black uppercase tracking-wider mt-0.5 leading-tight">
+                                  DISPENSADO
+                                </span>
+                              )}
+                              {!isTransferred && grade.result === 'DESISTENTE' && (
+                                <span className="text-[8px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-wider mt-0.5 leading-tight">
+                                  DESISTENTE
+                                </span>
+                              )}
+                            </div>
+                          </td>
 
                     {/* AV1 */}
                     <td className="py-2.5 px-1 text-center bg-slate-100/20 dark:bg-slate-800/10">
@@ -387,12 +383,13 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS1Locked || isTransferred}
-                        value={grade.av1 !== null ? grade.av1 : s1Part.av1}
-                        onChange={(e) => handleValueChange(grade.id, 'av1', e.target.value)}
+                        disabled={isLocked || isS1Locked || isStudentBlockedForTeacher}
+                        placeholder="-"
+                        value={grade.av1 !== null && grade.av1 !== undefined ? grade.av1 : ''}
+                        onChange={(e) => handleValueChange(grade.id, 'av1', e.target.value, stud.id)}
                         onFocus={(e) => e.target.select()}
                         onClick={(e) => e.currentTarget.select()}
-                        className="w-11 h-7 px-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-white text-center rounded-md focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none font-mono font-bold text-xs shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900/40 disabled:cursor-not-allowed"
+                        className="w-11 h-7 px-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-white text-center rounded-md focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none font-mono font-bold text-xs shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900/40 disabled:cursor-not-allowed placeholder-slate-300 dark:placeholder-slate-600"
                       />
                     </td>
 
@@ -402,12 +399,13 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS1Locked || isTransferred}
-                        value={grade.av2 !== null ? grade.av2 : s1Part.av2}
-                        onChange={(e) => handleValueChange(grade.id, 'av2', e.target.value)}
+                        disabled={isLocked || isS1Locked || isStudentBlockedForTeacher}
+                        placeholder="-"
+                        value={grade.av2 !== null && grade.av2 !== undefined ? grade.av2 : ''}
+                        onChange={(e) => handleValueChange(grade.id, 'av2', e.target.value, stud.id)}
                         onFocus={(e) => e.target.select()}
                         onClick={(e) => e.currentTarget.select()}
-                        className="w-11 h-7 px-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-white text-center rounded-md focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none font-mono font-bold text-xs shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900/40 disabled:cursor-not-allowed"
+                        className="w-11 h-7 px-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-white text-center rounded-md focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none font-mono font-bold text-xs shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900/40 disabled:cursor-not-allowed placeholder-slate-300 dark:placeholder-slate-600"
                       />
                     </td>
 
@@ -417,12 +415,13 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS1Locked || isTransferred}
-                        value={grade.av3 !== null ? grade.av3 : s1Part.av3}
-                        onChange={(e) => handleValueChange(grade.id, 'av3', e.target.value)}
+                        disabled={isLocked || isS1Locked || isStudentBlockedForTeacher}
+                        placeholder="-"
+                        value={grade.av3 !== null && grade.av3 !== undefined ? grade.av3 : ''}
+                        onChange={(e) => handleValueChange(grade.id, 'av3', e.target.value, stud.id)}
                         onFocus={(e) => e.target.select()}
                         onClick={(e) => e.currentTarget.select()}
-                        className="w-11 h-7 px-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-white text-center rounded-md focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none font-mono font-bold text-xs shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900/40 disabled:cursor-not-allowed"
+                        className="w-11 h-7 px-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-white text-center rounded-md focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none font-mono font-bold text-xs shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900/40 disabled:cursor-not-allowed placeholder-slate-300 dark:placeholder-slate-600"
                       />
                     </td>
 
@@ -432,10 +431,10 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS1Locked || isTransferred}
+                        disabled={isLocked || isS1Locked || isStudentBlockedForTeacher}
                         placeholder="-"
                         value={grade.recS1 !== null ? grade.recS1 : ''}
-                        onChange={(e) => handleValueChange(grade.id, 'recS1', e.target.value)}
+                        onChange={(e) => handleValueChange(grade.id, 'recS1', e.target.value, stud.id)}
                         onFocus={(e) => e.target.select()}
                         onClick={(e) => e.currentTarget.select()}
                         className="w-11 h-7 px-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-amber-700 dark:text-amber-400 text-center rounded-md focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none font-mono font-bold text-xs shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900/40 disabled:cursor-not-allowed placeholder-slate-300 dark:placeholder-slate-600"
@@ -453,12 +452,13 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS2Locked || isTransferred}
-                        value={grade.av4 !== null ? grade.av4 : s2Part.av4}
-                        onChange={(e) => handleValueChange(grade.id, 'av4', e.target.value)}
+                        disabled={isLocked || isS2Locked || isStudentBlockedForTeacher}
+                        placeholder="-"
+                        value={grade.av4 !== null && grade.av4 !== undefined ? grade.av4 : ''}
+                        onChange={(e) => handleValueChange(grade.id, 'av4', e.target.value, stud.id)}
                         onFocus={(e) => e.target.select()}
                         onClick={(e) => e.currentTarget.select()}
-                        className="w-11 h-7 px-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-white text-center rounded-md focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none font-mono font-bold text-xs shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900/40 disabled:cursor-not-allowed"
+                        className="w-11 h-7 px-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-white text-center rounded-md focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none font-mono font-bold text-xs shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900/40 disabled:cursor-not-allowed placeholder-slate-300 dark:placeholder-slate-600"
                       />
                     </td>
 
@@ -468,12 +468,13 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS2Locked || isTransferred}
-                        value={grade.av5 !== null ? grade.av5 : s2Part.av5}
-                        onChange={(e) => handleValueChange(grade.id, 'av5', e.target.value)}
+                        disabled={isLocked || isS2Locked || isStudentBlockedForTeacher}
+                        placeholder="-"
+                        value={grade.av5 !== null && grade.av5 !== undefined ? grade.av5 : ''}
+                        onChange={(e) => handleValueChange(grade.id, 'av5', e.target.value, stud.id)}
                         onFocus={(e) => e.target.select()}
                         onClick={(e) => e.currentTarget.select()}
-                        className="w-11 h-7 px-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-white text-center rounded-md focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none font-mono font-bold text-xs shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900/40 disabled:cursor-not-allowed"
+                        className="w-11 h-7 px-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-white text-center rounded-md focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none font-mono font-bold text-xs shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900/40 disabled:cursor-not-allowed placeholder-slate-300 dark:placeholder-slate-600"
                       />
                     </td>
 
@@ -483,12 +484,13 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS2Locked || isTransferred}
-                        value={grade.av6 !== null ? grade.av6 : s2Part.av6}
-                        onChange={(e) => handleValueChange(grade.id, 'av6', e.target.value)}
+                        disabled={isLocked || isS2Locked || isStudentBlockedForTeacher}
+                        placeholder="-"
+                        value={grade.av6 !== null && grade.av6 !== undefined ? grade.av6 : ''}
+                        onChange={(e) => handleValueChange(grade.id, 'av6', e.target.value, stud.id)}
                         onFocus={(e) => e.target.select()}
                         onClick={(e) => e.currentTarget.select()}
-                        className="w-11 h-7 px-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-white text-center rounded-md focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none font-mono font-bold text-xs shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900/40 disabled:cursor-not-allowed"
+                        className="w-11 h-7 px-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-white text-center rounded-md focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none font-mono font-bold text-xs shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900/40 disabled:cursor-not-allowed placeholder-slate-300 dark:placeholder-slate-600"
                       />
                     </td>
 
@@ -498,10 +500,10 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isS2Locked || isTransferred}
+                        disabled={isLocked || isS2Locked || isStudentBlockedForTeacher}
                         placeholder="-"
                         value={grade.recS2 !== null ? grade.recS2 : ''}
-                        onChange={(e) => handleValueChange(grade.id, 'recS2', e.target.value)}
+                        onChange={(e) => handleValueChange(grade.id, 'recS2', e.target.value, stud.id)}
                         onFocus={(e) => e.target.select()}
                         onClick={(e) => e.currentTarget.select()}
                         className="w-11 h-7 px-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-amber-700 dark:text-amber-400 text-center rounded-md focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none font-mono font-bold text-xs shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900/40 disabled:cursor-not-allowed placeholder-slate-300 dark:placeholder-slate-600"
@@ -519,10 +521,10 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isTransferred}
+                        disabled={isLocked || isStudentBlockedForTeacher}
                         placeholder="-"
                         value={grade.extra !== null ? grade.extra : ''}
-                        onChange={(e) => handleValueChange(grade.id, 'extra', e.target.value)}
+                        onChange={(e) => handleValueChange(grade.id, 'extra', e.target.value, stud.id)}
                         onFocus={(e) => e.target.select()}
                         onClick={(e) => e.currentTarget.select()}
                         className="w-11 h-7 px-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-white text-center rounded-md focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none font-mono font-bold text-xs shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900/40 disabled:cursor-not-allowed placeholder-slate-300 dark:placeholder-slate-600"
@@ -535,10 +537,10 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isTransferred}
+                        disabled={isLocked || isStudentBlockedForTeacher}
                         placeholder="-"
                         value={grade.conselho !== null ? grade.conselho : ''}
-                        onChange={(e) => handleValueChange(grade.id, 'conselho', e.target.value)}
+                        onChange={(e) => handleValueChange(grade.id, 'conselho', e.target.value, stud.id)}
                         onFocus={(e) => e.target.select()}
                         onClick={(e) => e.currentTarget.select()}
                         className="w-11 h-7 px-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-purple-700 dark:text-purple-400 text-center rounded-md focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none font-mono font-bold text-xs shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900/40 disabled:cursor-not-allowed placeholder-slate-300 dark:placeholder-slate-600"
@@ -551,10 +553,10 @@ export const GradeJournal: React.FC = () => {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        disabled={isLocked || isTransferred}
+                        disabled={isLocked || isStudentBlockedForTeacher}
                         placeholder="-"
                         value={grade.afc !== null ? grade.afc : ''}
-                        onChange={(e) => handleValueChange(grade.id, 'afc', e.target.value)}
+                        onChange={(e) => handleValueChange(grade.id, 'afc', e.target.value, stud.id)}
                         onFocus={(e) => e.target.select()}
                         onClick={(e) => e.currentTarget.select()}
                         className="w-11 h-7 px-1 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-750 text-slate-800 dark:text-white text-center rounded-md focus:border-blue-500 dark:focus:border-blue-400 focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 outline-none font-mono font-bold text-xs shadow-sm transition-all disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-900/40 disabled:cursor-not-allowed placeholder-slate-300 dark:placeholder-slate-600"
@@ -573,16 +575,63 @@ export const GradeJournal: React.FC = () => {
 
                     {/* Result */}
                     <td className="py-2.5 px-3 text-right">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black tracking-wide ${
-                        grade.result?.includes('APTO') 
-                          ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400' 
-                          : (grade.result === 'F. NOTA' || grade.result === 'REP. FALTAS' || grade.result === 'NÃO APTO')
-                            ? 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400'
-                            : 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400'
-                      }`}>
-                        {grade.result === 'F. NOTA' ? 'REP. FALTAS' : grade.result}
-                      </span>
+                      {currentUser?.role === 'ADMIN' && !isLocked ? (
+                        <select
+                          value={grade.result === 'DISPENSADO' ? 'DISPENSADO' : grade.result === 'DESISTENTE' ? 'DESISTENTE' : 'AUTO'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'DISPENSADO') {
+                              updateGrade(grade.id, { result: 'DISPENSADO', concept: 'DISP', studentId: stud.id, classId: targetClass.id, subjectId: targetSubject.id });
+                              setSaveStatus('unsaved');
+                            } else if (val === 'DESISTENTE') {
+                              updateGrade(grade.id, { result: 'DESISTENTE', concept: 'DES', studentId: stud.id, classId: targetClass.id, subjectId: targetSubject.id });
+                              setSaveStatus('unsaved');
+                            } else {
+                              updateGrade(grade.id, { result: 'Pendente', concept: 'E', studentId: stud.id, classId: targetClass.id, subjectId: targetSubject.id });
+                              setSaveStatus('unsaved');
+                            }
+                          }}
+                          className={`text-[10px] font-black rounded px-1.5 py-1 border outline-none cursor-pointer transition-all ${
+                            grade.result === 'DISPENSADO'
+                              ? 'bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-800 font-bold'
+                              : grade.result === 'DESISTENTE'
+                                ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700 font-bold'
+                                : grade.result?.includes('APTO') 
+                                  ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' 
+                                  : (grade.result === 'F. NOTA' || grade.result === 'REP. FALTAS' || grade.result === 'NÃO APTO')
+                                    ? 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800'
+                                    : 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                          }`}
+                        >
+                          <option value="AUTO" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200">
+                            {grade.result === 'DISPENSADO' || grade.result === 'DESISTENTE' ? 'CALCULADO (AUTO)' : (grade.result === 'F. NOTA' ? 'REP. FALTAS' : grade.result)}
+                          </option>
+                          <option value="DISPENSADO" className="bg-purple-50 dark:bg-purple-900 text-purple-900 dark:text-purple-100 font-bold">
+                            DISPENSADO
+                          </option>
+                          <option value="DESISTENTE" className="bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-bold">
+                            DESISTENTE
+                          </option>
+                        </select>
+                      ) : (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black tracking-wide ${
+                          grade.result === 'DISPENSADO'
+                            ? 'bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300'
+                            : grade.result === 'DESISTENTE'
+                              ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-bold'
+                              : grade.result?.includes('APTO') 
+                                ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400' 
+                                : (grade.result === 'F. NOTA' || grade.result === 'REP. FALTAS' || grade.result === 'NÃO APTO')
+                                  ? 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400'
+                                  : 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400'
+                        }`}>
+                          {grade.result === 'F. NOTA' ? 'REP. FALTAS' : grade.result}
+                        </span>
+                      )}
                     </td>
+                        </>
+                      );
+                    })()}
                   </tr>
                 );
               })}

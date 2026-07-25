@@ -727,10 +727,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const lastReceivedPayloadRef = React.useRef<string>('');
   const lastLocalWriteTimeRef = React.useRef<string | null>(lastLocalWriteTime);
   const editStartTimeRef = React.useRef<number | null>(null);
+  const hasReceivedInitialCloudSyncRef = React.useRef<boolean>(false);
 
   useEffect(() => {
     lastLocalWriteTimeRef.current = lastLocalWriteTime;
   }, [lastLocalWriteTime]);
+
+  useEffect(() => {
+    hasReceivedInitialCloudSyncRef.current = hasReceivedInitialCloudSync;
+  }, [hasReceivedInitialCloudSync]);
 
   // Initial synchronization & real-time updates with Cloud Firestore
   useEffect(() => {
@@ -765,12 +770,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             const state = docSnap.data() as SystemStatePayload;
 
-            // Conflict Resolution: If we have a more recent local modification, do not let older cloud data overwrite it.
-            if (lastLocalWriteTimeRef.current) {
+            // Conflict Resolution: Only preserve local state if initial sync was already completed AND the user has pending unsaved local edits
+            if (hasReceivedInitialCloudSyncRef.current && editStartTimeRef.current && lastLocalWriteTimeRef.current) {
               const localTime = new Date(lastLocalWriteTimeRef.current).getTime();
               const cloudTime = state.lastBackupTime ? new Date(state.lastBackupTime).getTime() : 0;
               if (cloudTime < localTime) {
-                console.log('[onSnapshot] Conflito detectado: O estado local é mais recente do que o recebido da nuvem. Mantendo dados locais.');
+                console.log('[onSnapshot] Conflito detectado: O estado local possui edições não salvas mais recentes do que a nuvem. Mantendo dados locais temporariamente.');
                 return;
               }
             }
@@ -1165,6 +1170,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setGrades(prevGrades => {
       let changed = false;
       const updated = prevGrades.map(g => {
+        if (g.result === 'DISPENSADO' || g.result === 'DESISTENTE') {
+          return g;
+        }
         const { frequency } = getStudentAbsencesInternal(g.studentId, g.subjectId, g.classId, attendance, subjects);
         const newResult = getStudentResult(g, frequency);
         const newConcept = getStudentConcept(g.pf, conceptRanges);
@@ -1473,6 +1481,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Grade Calculations
   const calculateS1 = (g: Partial<GradeRecord>) => {
+    const hasAnyS1 = (g.av1 !== null && g.av1 !== undefined) ||
+                     (g.av2 !== null && g.av2 !== undefined) ||
+                     (g.av3 !== null && g.av3 !== undefined) ||
+                     (g.recS1 !== null && g.recS1 !== undefined);
+    if (!hasAnyS1 && g.s1 !== undefined && g.s1 !== null) {
+      return g.s1;
+    }
     const av1 = g.av1 ?? 0;
     const av2 = g.av2 ?? 0;
     const av3 = g.av3 ?? 0;
@@ -1489,6 +1504,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const calculateS2 = (g: Partial<GradeRecord>) => {
+    const hasAnyS2 = (g.av4 !== null && g.av4 !== undefined) ||
+                     (g.av5 !== null && g.av5 !== undefined) ||
+                     (g.av6 !== null && g.av6 !== undefined) ||
+                     (g.recS2 !== null && g.recS2 !== undefined);
+    if (!hasAnyS2 && g.s2 !== undefined && g.s2 !== null) {
+      return g.s2;
+    }
     const av4 = g.av4 ?? 0;
     const av5 = g.av5 ?? 0;
     const av6 = g.av6 ?? 0;
@@ -2068,6 +2090,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const computeCalculatedGrade = (record: GradeRecord): GradeRecord => {
+    if (record.result === 'DISPENSADO') {
+      return {
+        ...record,
+        concept: record.concept === 'E' || !record.concept ? 'DISP' : record.concept,
+        result: 'DISPENSADO'
+      };
+    }
+    if (record.result === 'DESISTENTE') {
+      return {
+        ...record,
+        concept: record.concept === 'E' || !record.concept ? 'DES' : record.concept,
+        result: 'DESISTENTE'
+      };
+    }
     const s1 = calculateS1(record);
     const s2 = calculateS2(record);
     const rawAfc = record.afc;
@@ -2093,7 +2129,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let studentId = updates.studentId || '';
     let classId = updates.classId || '';
     let subjectId = updates.subjectId || '';
-    if (id.startsWith('grade_')) {
+    if ((!studentId || !classId || !subjectId) && id.includes(':::')) {
+      const parts = id.split(':::');
+      if (parts.length >= 4) {
+        studentId = studentId || parts[1];
+        classId = classId || parts[2];
+        subjectId = subjectId || parts[3];
+      }
+    } else if ((!studentId || !classId || !subjectId) && id.startsWith('grade_')) {
       const parts = id.split('_');
       if (parts.length >= 4) {
         studentId = studentId || parts[1];
@@ -2144,7 +2187,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       let classId = existingRecord?.classId || updates.classId || '';
       let subjectId = existingRecord?.subjectId || updates.subjectId || '';
 
-      if ((!studentId || !classId) && id.startsWith('grade_')) {
+      if ((!studentId || !classId) && id.includes(':::')) {
+        const parts = id.split(':::');
+        if (parts.length >= 4) {
+          studentId = studentId || parts[1];
+          classId = classId || parts[2];
+          subjectId = subjectId || parts[3];
+        }
+      } else if ((!studentId || !classId) && id.startsWith('grade_')) {
         const parts = id.split('_');
         if (parts.length >= 4) {
           studentId = studentId || parts[1];
