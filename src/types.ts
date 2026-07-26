@@ -101,6 +101,9 @@ export interface User {
   enrollment?: string; // matricula for students/teachers
   active: boolean;
   classId?: string; // student's active class section
+  courseId?: string;
+  status?: string;
+  createdAt?: string;
   assignedJournals?: { classId: string, subjectId: string }[];
   staffPermissions?: StaffPermissions;
 }
@@ -242,6 +245,7 @@ export interface StudentDocument {
 }
 
 export interface DeclarationConfigs {
+  institutionName?: string;
   escolaridade: { startDate: string; endDate: string };
   ctransp: { startDate: string; endDate: string };
 }
@@ -254,5 +258,18 @@ export interface InternshipRecord {
   location: string;
   grade: number | null;
   updatedAt?: string;
+}
+
+export interface CustomDashboardWidget {
+  id: string;
+  name: string;
+  type: 'card' | 'barChart' | 'pieChart' | 'table' | 'indicator' | 'list' | 'calendar';
+  dataSource: 'students' | 'courses' | 'classes' | 'financial' | 'internships' | 'diplomas' | 'staff';
+  metric: 'count' | 'average' | 'sum' | 'percentage';
+  filterKey?: string;
+  icon: string;
+  color: string;
+  position: number;
+  description?: string;
 }
 

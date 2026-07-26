@@ -24,6 +24,7 @@ import { SubjectManager } from './SubjectManager';
 import { CourseManager } from './CourseManager';
 import { StaffManager } from './StaffManager';
 import { DependencyManager } from './DependencyManager';
+import { ExecutiveBIDashboard } from './ExecutiveBIDashboard';
 import { Briefcase } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -861,102 +862,15 @@ export const AdminDashboard: React.FC = () => {
         </button>
       </div>
 
-      {/* Tab: VISUALIZADOR DE INDICADORES (Stunning Bento Matrix) */}
+      {/* Tab: VISUALIZADOR DE INDICADORES (Dashboard Executivo BI) */}
       {activeTab === 'visu' && (
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="space-y-6"
         >
-          {/* Quick Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
-              <div className="p-3 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 rounded-xl">
-                <Users className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Professores</p>
-                <p className="text-xl font-black text-slate-800 dark:text-white leading-none mt-1">{activeTeachers.length}</p>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
-              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 rounded-xl">
-                <GraduationCap className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Alunos Ativos</p>
-                <p className="text-xl font-black text-slate-800 dark:text-white leading-none mt-1">{activeStudents.length}</p>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
-              <div className="p-3 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 rounded-xl">
-                <School className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Turmas</p>
-                <p className="text-xl font-black text-slate-800 dark:text-white leading-none mt-1">{classes.length}</p>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-2xl flex items-center gap-4 shadow-sm">
-              <div className="p-3 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 rounded-xl">
-                <BookOpen className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Diários Ativos</p>
-                <p className="text-xl font-black text-slate-800 dark:text-white leading-none mt-1">{journalsTotal}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Performance & Academic Alerts */}
-          <div className="grid md:grid-cols-12 gap-4">
-            {/* Bento 1: Percentual Approvals */}
-            <div className="md:col-span-5 bg-gradient-to-br from-blue-700 to-indigo-900 text-white p-6 rounded-3xl flex flex-col justify-between shadow-lg relative overflow-hidden min-h-[220px]">
-              <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-blue-600/20 rounded-full blur-2xl"></div>
-              <div>
-                <span className="bg-white/15 px-2.5 py-1 rounded-full text-[9px] font-bold tracking-widest uppercase">Índice Geral</span>
-                <h4 className="text-2xl font-black mt-2">Aproveitamento Acadêmico</h4>
-              </div>
-              <div className="my-2 flex items-baseline gap-1">
-                <span className="text-5xl font-black tracking-tighter">{overallApprovalRate.toFixed(1)}%</span>
-                <span className="text-xs text-blue-200">Aprovação</span>
-              </div>
-              <div className="text-xs text-blue-100 flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                <span>{approvedCount} aptos • {failedCount} retidos • {pendingGrades} notas pendentes</span>
-              </div>
-            </div>
-
-            {/* Bento 2: Attendance alerts */}
-            <div className="md:col-span-7 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-3xl flex flex-col justify-between shadow-sm min-h-[220px]">
-              <div>
-                <span className="bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 px-2.5 py-0.5 rounded-full text-[9px] font-bold tracking-widest uppercase">Indicadores Críticos</span>
-                <h4 className="text-lg font-extrabold mt-2 text-slate-800 dark:text-white">Faltas Gerais & Retenções</h4>
-              </div>
-              <div className="grid grid-cols-3 gap-2 py-4 border-y border-slate-100 dark:border-slate-800/80 my-2">
-                <div>
-                  <span className="text-slate-400 text-[10px] uppercase block">Faltas Totais</span>
-                  <span className="text-xl font-bold font-mono text-slate-800 dark:text-white">{totalAbsencesCount}h</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 text-[10px] uppercase block">Retidos por Faltas</span>
-                  <span className="text-xl font-bold font-mono text-red-600">{grades.filter(g => g.result === 'REP. FALTAS').length}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 text-[10px] uppercase block">Abertura Diários</span>
-                  <span className="text-xl font-bold font-mono text-emerald-600">
-                    {classes.filter(c => !c.closedDefinitive).length} turmas
-                  </span>
-                </div>
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 leading-none">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> Limite regulamentar é de 75% de presença para aprovação em cada diário.
-              </p>
-            </div>
-          </div>
+          {/* Executive BI Dashboard */}
+          <ExecutiveBIDashboard onNavigateTab={(tabKey) => setActiveTab(tabKey as any)} />
 
           {/* CONTROL CENTER: Automated closing and simulated dates */}
           <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
