@@ -5,8 +5,8 @@
 export interface AuditLog {
   id: string;
   entityId: string;
-  entityType: 'ALUNO' | 'CURSO' | 'DISCIPLINA' | 'MODULO' | 'PROFESSOR' | 'TIPO_AVALIACAO' | 'SALA' | 'RESOLUCAO';
-  action: 'CRIADO' | 'EDITADO' | 'EXCLUIDO';
+  entityType: 'ALUNO' | 'CURSO' | 'DISCIPLINA' | 'MODULO' | 'PROFESSOR' | 'TIPO_AVALIACAO' | 'SALA' | 'RESOLUCAO' | 'PESQUISA_ALUNO' | 'PESQUISA_FINANCEIRO' | 'PESQUISA_ESTAGIO' | 'PESQUISA_PROFESSOR' | 'PESQUISA_MATRICULA';
+  action: 'CRIADO' | 'EDITADO' | 'EXCLUIDO' | 'CONSULTADO';
   performedBy: string;
   timestamp: string; // ISO string
   details: string;
@@ -117,6 +117,7 @@ export interface DetailedTeacher {
   councilValidity?: string;
   academicTitle?: AcademicTitle;
   specialty?: string;
+  teacherType?: 'SALA_DE_AULA' | 'ESTAGIO' | 'AMBOS';
 
   // Vinculação de disciplinas / cursos
   subjectIds?: string[];

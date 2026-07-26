@@ -608,6 +608,62 @@ export function saveInstallment(inst: Installment): void {
   setItemJSON(STORAGE_KEYS.INSTALLMENTS, installments);
 }
 
+export function saveInstallments(list: Installment[]): void {
+  setItemJSON(STORAGE_KEYS.INSTALLMENTS, list);
+}
+
+export function generateStudentInstallments(params: {
+  studentId: string;
+  studentName: string;
+  enrollment: string;
+  courseName: string;
+  className?: string;
+  monthlyValue: number;
+  totalInstallments: number;
+  firstDueDate: string;
+  user: string;
+  notes?: string;
+}): Installment[] {
+  const installments = getInstallments();
+  const newInstallments: Installment[] = [];
+  const startDate = new Date(params.firstDueDate || Date.now());
+
+  for (let i = 1; i <= params.totalInstallments; i++) {
+    const dueDate = new Date(startDate.getFullYear(), startDate.getMonth() + (i - 1), startDate.getDate());
+    const dueDateStr = dueDate.toISOString().substring(0, 10);
+    const discLimit = new Date(dueDate.getFullYear(), dueDate.getMonth(), Math.min(10, dueDate.getDate())).toISOString().substring(0, 10);
+    const mm = (dueDate.getMonth() + 1).toString().padStart(2, '0');
+    const yyyy = dueDate.getFullYear();
+
+    const inst: Installment = {
+      id: `inst_${params.studentId}_${i}_${Date.now()}`,
+      studentId: params.studentId,
+      studentName: params.studentName,
+      enrollment: params.enrollment,
+      courseName: params.courseName,
+      className: params.className,
+      number: i,
+      totalInstallments: params.totalInstallments,
+      competencia: `${mm}/${yyyy}`,
+      originalValue: params.monthlyValue,
+      discountValue: 0,
+      discountLimitDate: discLimit,
+      dueDate: dueDateStr,
+      interestStartDate: dueDateStr,
+      finePercent: 2,
+      dailyInterestPercent: 0.033,
+      status: 'PENDENTE',
+      notes: params.notes
+    };
+    newInstallments.push(inst);
+    installments.push(inst);
+  }
+
+  saveInstallments(installments);
+  addFinancialAuditLog(params.user, 'PARCELAS_GERADAS', `${params.totalInstallments} parcelas geradas para ${params.studentName}`);
+  return newInstallments;
+}
+
 export function calculateInstallmentAmountDue(inst: Installment, targetDateStr?: string): {
   originalValue: number;
   discountApplied: number;

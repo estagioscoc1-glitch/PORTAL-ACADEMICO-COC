@@ -61,6 +61,7 @@ export const TeacherRegistration: React.FC = () => {
   const [councilValidity, setCouncilValidity] = useState('');
   const [academicTitle, setAcademicTitle] = useState<AcademicTitle>('Especialização');
   const [specialty, setSpecialty] = useState('');
+  const [teacherType, setTeacherType] = useState<'SALA_DE_AULA' | 'ESTAGIO' | 'AMBOS'>('AMBOS');
 
   // Address
   const [cep, setCep] = useState('');
@@ -128,6 +129,7 @@ export const TeacherRegistration: React.FC = () => {
     setCouncilValidity('');
     setAcademicTitle('Especialização');
     setSpecialty('');
+    setTeacherType('AMBOS');
 
     setCep('');
     setAddress('');
@@ -176,6 +178,7 @@ export const TeacherRegistration: React.FC = () => {
     setCouncilValidity(d.councilValidity || '');
     setAcademicTitle(d.academicTitle || 'Especialização');
     setSpecialty(d.specialty || '');
+    setTeacherType(d.teacherType || 'AMBOS');
 
     setCep(d.cep || '');
     setAddress(d.address || '');
@@ -263,6 +266,7 @@ export const TeacherRegistration: React.FC = () => {
         councilValidity,
         academicTitle,
         specialty: specialty.trim(),
+        teacherType,
         cep: cep.trim(),
         address: address.trim(),
         number: number.trim(),
@@ -317,6 +321,7 @@ export const TeacherRegistration: React.FC = () => {
         councilValidity,
         academicTitle,
         specialty: specialty.trim(),
+        teacherType,
         cep: cep.trim(),
         address: address.trim(),
         number: number.trim(),
@@ -740,6 +745,20 @@ export const TeacherRegistration: React.FC = () => {
                       placeholder="Ex: Enfermagem em UTIP / Cardiologia"
                       className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                     />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300">Tipo de Professor *</label>
+                    <select
+                      disabled={modalMode === 'view'}
+                      value={teacherType}
+                      onChange={(e) => setTeacherType(e.target.value as any)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                    >
+                      <option value="SALA_DE_AULA">Professor de Sala de Aula</option>
+                      <option value="ESTAGIO">Professor de Estágio</option>
+                      <option value="AMBOS">Ambos (Sala e Estágio)</option>
+                    </select>
                   </div>
 
                   <div className="space-y-1">

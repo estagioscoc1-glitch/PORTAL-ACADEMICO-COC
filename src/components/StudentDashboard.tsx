@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { useApp, getRequiredDocsForStudent } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { 
   GraduationCap, Printer, Bell, Calendar, HelpCircle, CheckCircle, 
   AlertTriangle, BookOpen, Clock, Sparkles, ExternalLink, FileText, 
@@ -14,6 +14,14 @@ import {
 import { PrintModal } from './PrintModal';
 import { getInternshipComponentsByCourse } from './AdminInternships';
 import { motion } from 'motion/react';
+import { 
+  getStageVacancies, saveStageVacancy, getStageCronogramas, 
+  getEventParticipants, getEvents, getOfficialTemplates 
+} from '../services/movimentacaoStorage';
+import { getInstallments, saveMiscPaymentCatalog } from '../services/financeiroStorage';
+import { StageVacancy, EventParticipant, EventMinicourse } from '../types/movimentacao';
+import { MovimentacaoDocumentPrintModal } from './movimentacao/MovimentacaoDocumentPrintModal';
+import { Check, FileCheck, DollarSign, UserCheck, Lock, AlertCircle } from 'lucide-react';
 
 interface StudentDashboardProps {
   studentId?: string;
@@ -28,12 +36,21 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
   } = useApp();
   const [printDoc, setPrintDoc] = useState<boolean>(false);
   const [printHistorico, setPrintHistorico] = useState<boolean>(false);
-  const [activeSubTab, setActiveSubTab] = useState<'aproveitamento' | 'declaracoes' | 'documentos' | 'estagio' | 'historico_completo'>('aproveitamento');
+  const [activeSubTab, setActiveSubTab] = useState<'aproveitamento' | 'declaracoes' | 'documentos' | 'estagio' | 'historico_completo' | 'certificados'>('aproveitamento');
   const [printDeclType, setPrintDeclType] = useState<'decl_escolaridade' | 'decl_ctransp' | 'decl_vacina' | null>(null);
   
   // Local state for simulated uploads
   const [uploadingDocName, setUploadingDocName] = useState<string | null>(null);
   const [simulatedFile, setSimulatedFile] = useState<{ name: string; size: string } | null>(null);
+
+  // Stage self-enrollment states
+  const [estagioSubMode, setEstagioSubMode] = useState<'vagas_abertas' | 'meu_progresso'>('vagas_abertas');
+  const [pendencyModalVac, setPendencyModalVac] = useState<StageVacancy | null>(null);
+  const [pendencyList, setPendencyList] = useState<{ id: string; label: string; details: string; type: 'insurance' | 'tuition' | 'docs' }[]>([]);
+  const [toastMsg, setToastMsg] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Certificate Modal State
+  const [selectedCertModal, setSelectedCertModal] = useState<{ title: string; contentHtml?: string; pdfUrl?: string; pdfName?: string } | null>(null);
 
   const activeStudent = studentId ? (users.find(u => u.id === studentId) || currentUser) : currentUser;
 
@@ -209,8 +226,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                 📄 Minhas Declarações
               </button>
             </div>
-            {/* Bottom Row: 2 buttons */}
-            <div className="grid grid-cols-2 gap-1.5">
+            {/* Bottom Row: 3 buttons */}
+            <div className="grid grid-cols-3 gap-1.5">
               <button
                 onClick={() => setActiveSubTab('documentos')}
                 className={`px-2 py-2 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all cursor-pointer text-center truncate ${
@@ -230,6 +247,16 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                 }`}
               >
                 💼 Estágios Curriculares
+              </button>
+              <button
+                onClick={() => setActiveSubTab('certificados')}
+                className={`px-2 py-2 text-[10px] sm:text-xs font-extrabold uppercase tracking-wider rounded-xl transition-all cursor-pointer text-center truncate ${
+                  activeSubTab === 'certificados'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                🏆 Meus Certificados
               </button>
             </div>
           </div>
@@ -467,7 +494,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
 
           {/* TAB 3: DOCUMENTOS */}
           {activeSubTab === 'documentos' && (() => {
-            const requiredDocs = getRequiredDocsForStudent(courseInfo?.name);
+            const requiredDocs = ['RG e CPF', 'Histórico do Ensino Médio', 'Comprovante de Residência', 'Atestado de Vacinação'];
             const docs = studentDocuments.filter(d => d.studentId === activeStudent.id);
 
             return (
@@ -533,7 +560,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
             );
           })()}
 
-          {/* TAB 4: ESTÁGIO (Student Tracking Portal) */}
+          {/* TAB 4: ESTÁGIO (Student Tracking & Self-Enrollment) */}
           {activeSubTab === 'estagio' && (() => {
             const courseId = courseInfo?.id || '';
             const courseName = courseInfo?.name || '';
@@ -542,8 +569,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
 
             // Calculations
             const totalRequiredHrs = components.reduce((sum, c) => sum + c.workload, 0);
-            
-            // Completed is where grade is launched (grade is not null)
             const completedComponents = components.filter(c => {
               const record = studentInternships.find(r => r.subjectName === c.name);
               return record && record.grade !== null;
@@ -551,29 +576,237 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
             const completedHrs = completedComponents.reduce((sum, c) => sum + c.workload, 0);
             const completionPercent = totalRequiredHrs > 0 ? Math.round((completedHrs / totalRequiredHrs) * 100) : 0;
 
-            // Average grade of completed components
             const gradedRecords = studentInternships.filter(r => r.grade !== null);
             const averageGrade = gradedRecords.length > 0 
               ? (gradedRecords.reduce((sum, r) => sum + (r.grade || 0), 0) / gradedRecords.length).toFixed(2)
               : null;
 
+            // Vacancies & Cronogramas
+            const allVacancies = getStageVacancies();
+            const cronogramas = getStageCronogramas();
+
+            // Check pendencies for a vacancy
+            const checkAndEnroll = (vac: StageVacancy) => {
+              const pList: { id: string; label: string; details: string; type: 'insurance' | 'tuition' | 'docs' }[] = [];
+
+              // 1) Insurance Fee Check
+              const insurancePaid = localStorage.getItem(`insurance_paid_${activeStudent.id}`) === 'true';
+              if (!insurancePaid) {
+                pList.push({
+                  id: 'insurance',
+                  label: 'Taxa de Seguro de Estágio Obrigatório (R$ 150,00)',
+                  details: 'Seguro individual contra acidentes exigido por lei para autorizar entrada nos hospitais/campos.',
+                  type: 'insurance'
+                });
+              }
+
+              // 2) Financial Check
+              const allInst = getInstallments();
+              const studentInst = allInst.filter(i => i.studentId === activeStudent.id);
+              const overdue = studentInst.filter(i => i.status === 'ATRASADA');
+              if (overdue.length > 0) {
+                pList.push({
+                  id: 'tuition',
+                  label: `Financeiro: ${overdue.length} mensalidade(s) pendente(s) de pagamento`,
+                  details: 'Necessário estar com o período quitado na secretaria para homologação.',
+                  type: 'tuition'
+                });
+              }
+
+              // 3) Documents Check
+              const requiredDocs = ['RG e CPF', 'Histórico do Ensino Médio', 'Comprovante de Residência', 'Atestado de Vacinação'];
+              const userDocs = studentDocuments.filter(d => d.studentId === activeStudent.id);
+              const missingDocs = requiredDocs.filter(reqName => {
+                const docRecord = userDocs.find(d => d.name === reqName);
+                return !docRecord || docRecord.status === 'PENDENTE';
+              });
+              if (missingDocs.length > 0) {
+                pList.push({
+                  id: 'docs',
+                  label: `Documentos Obrigatórios Pendentes (${missingDocs.length} arquivo(s))`,
+                  details: `Falta entregar: ${missingDocs.slice(0, 2).join(', ')}`,
+                  type: 'docs'
+                });
+              }
+
+              if (pList.length > 0) {
+                setPendencyList(pList);
+                setPendencyModalVac(vac);
+              } else {
+                // Direct enrollment
+                doEnroll(vac);
+              }
+            };
+
+            const doEnroll = (vac: StageVacancy) => {
+              const allocated = vac.studentsAllocated || [];
+              if (allocated.some(s => s.studentId === activeStudent.id)) {
+                setToastMsg({ type: 'error', message: 'Você já está inscrito nesta vaga de estágio.' });
+                return;
+              }
+
+              const updatedVac: StageVacancy = {
+                ...vac,
+                studentsAllocated: [
+                  ...allocated,
+                  {
+                    studentId: activeStudent.id,
+                    studentName: activeStudent.name,
+                    enrollmentNumber: activeStudent.enrollment || 'ALU-2026',
+                    status: 'MATRICULADO'
+                  }
+                ]
+              };
+
+              saveStageVacancy(updatedVac, activeStudent.name);
+              setToastMsg({ type: 'success', message: `Matrícula realizada com sucesso na vaga "${vac.companyName || vac.stageName}"!` });
+              setPendencyModalVac(null);
+            };
+
             return (
               <div className="space-y-5 animate-fade-in">
-                <div>
-                  <h3 className="font-extrabold text-slate-800 dark:text-white text-base">Controle de Estágios Supervisionados</h3>
-                  <p className="text-xs text-slate-400">Acompanhe seu progresso, locais de alocação e notas finais de estágio homologadas pela secretaria.</p>
+                
+                {/* Header Sub-Nav */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 dark:bg-slate-850 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <div>
+                    <h3 className="font-extrabold text-slate-800 dark:text-white text-base">Portal de Estágios Curriculares</h3>
+                    <p className="text-xs text-slate-400">Inscreva-se nas vagas abertas e acompanhe seu progresso de horas supervisionadas.</p>
+                  </div>
+
+                  {/* Sub-toggle buttons */}
+                  <div className="flex items-center gap-1.5 p-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setEstagioSubMode('vagas_abertas')}
+                      className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all cursor-pointer ${
+                        estagioSubMode === 'vagas_abertas'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      📌 Vagas Abertas para Inscrição
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEstagioSubMode('meu_progresso')}
+                      className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all cursor-pointer ${
+                        estagioSubMode === 'meu_progresso'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      📊 Meu Progresso ({completionPercent}%)
+                    </button>
+                  </div>
                 </div>
 
-                {components.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-                    Seu curso atual não possui uma grade de estágios supervisionados curricular associada.
+                {/* SUBMODE 1: VAGAS ABERTAS PARA INSCRIÇÃO */}
+                {estagioSubMode === 'vagas_abertas' && (
+                  <div className="space-y-4">
+                    {/* Cronogramas Banner */}
+                    {cronogramas.length > 0 && (
+                      <div className="p-4 bg-gradient-to-r from-blue-900 to-indigo-950 text-white rounded-2xl border border-blue-500/30 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-blue-300 flex items-center gap-1">
+                            <Calendar className="h-3.5 w-3.5" /> Cronograma de Liberação de Estágios
+                          </span>
+                          <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 font-bold text-[9px] rounded uppercase">
+                            Datas Oficiais
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-semibold">
+                          {cronogramas.map(cro => (
+                            <div key={cro.id} className="p-2.5 bg-white/10 rounded-xl border border-white/10 space-y-1">
+                              <p className="font-extrabold text-blue-100">{cro.title}</p>
+                              <p className="text-[10px] text-slate-300">
+                                Liberação: <strong className="text-emerald-400">{cro.releaseDate ? new Date(cro.releaseDate).toLocaleDateString('pt-BR') : 'Imediata'}</strong> • Turno: {cro.shift}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <h4 className="font-extrabold text-xs text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                      Vagas e Turmas de Estágio Disponíveis ({allVacancies.length})
+                    </h4>
+
+                    {allVacancies.length === 0 ? (
+                      <div className="p-10 text-center text-xs text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl space-y-2">
+                        <Briefcase className="h-8 w-8 text-slate-300 mx-auto" />
+                        <p className="font-bold text-slate-600 dark:text-slate-300">Nenhuma vaga de estágio publicada no momento.</p>
+                        <p>A coordenação acadêmica publicará novas vagas no cronograma oficial.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {allVacancies.map(vac => {
+                          const allocated = vac.studentsAllocated || [];
+                          const isEnrolled = allocated.some(s => s.studentId === activeStudent.id);
+                          const maxSlots = vac.maxStudents || 15;
+                          const slotsLeft = Math.max(0, maxSlots - allocated.length);
+
+                          return (
+                            <div key={vac.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3.5 flex flex-col justify-between">
+                              <div className="space-y-2">
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-extrabold text-[9px] rounded uppercase tracking-wider">
+                                      {vac.sector || 'Campo de Estágio'}
+                                    </span>
+                                    <h5 className="font-extrabold text-sm text-slate-900 dark:text-white mt-1">
+                                      {vac.companyName || vac.stageName || 'Hospital Geral'}
+                                    </h5>
+                                  </div>
+                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${
+                                    isEnrolled
+                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300/40'
+                                      : slotsLeft > 0
+                                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
+                                      : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                                  }`}>
+                                    {isEnrolled ? '✓ MATRICULADO' : slotsLeft > 0 ? `${slotsLeft} Vagas Restantes` : 'VAGAS ESGOTADAS'}
+                                  </span>
+                                </div>
+
+                                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl space-y-1.5 text-xs text-slate-700 dark:text-slate-300 font-medium">
+                                  <div>🎓 Docente Preceptor: <strong className="text-blue-600 dark:text-blue-400">{vac.teacherName || 'Prof. Responsável'}</strong></div>
+                                  <div>📅 Período: <strong>{vac.startDate} até {vac.endDate}</strong></div>
+                                  <div>🕒 Escala / Horário: <strong>{vac.scheduleDaysTime || 'Segunda a Sexta - 07:00 às 12:00'}</strong></div>
+                                  <div>👥 Alunos Inscritos: <strong>{allocated.length} de {maxSlots} vagas</strong></div>
+                                </div>
+                              </div>
+
+                              <div>
+                                {isEnrolled ? (
+                                  <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-300 font-extrabold">
+                                    <span className="flex items-center gap-1">
+                                      <Check className="h-4 w-4 text-emerald-600" /> Sua inscrição está confirmada nesta turma!
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled={slotsLeft <= 0}
+                                    onClick={() => checkAndEnroll(vac)}
+                                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-black text-xs rounded-xl shadow-md shadow-blue-500/15 cursor-pointer transition-all flex items-center justify-center gap-2"
+                                  >
+                                    <UserCheck className="h-4 w-4" /> Inscrever-me Nesta Vaga de Estágio
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <>
-                    {/* Visual Progress Dashboard Cards */}
+                )}
+
+                {/* SUBMODE 2: MEU PROGRESSO DE ESTÁGIO */}
+                {estagioSubMode === 'meu_progresso' && (
+                  <div className="space-y-5">
+                    {/* Progress Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      
-                      {/* Workload Progress Card */}
                       <div className="bg-slate-50 dark:bg-slate-850/40 border border-slate-200/60 dark:border-slate-800/60 p-4 rounded-2xl flex flex-col justify-between space-y-2">
                         <div>
                           <span className="block text-[9px] font-black uppercase tracking-widest text-slate-400">Progresso de Carga Horária</span>
@@ -581,7 +814,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                             {completedHrs}h <span className="text-slate-400 text-xs sm:text-sm font-bold">/ {totalRequiredHrs}h</span>
                           </strong>
                         </div>
-                        {/* Progress Bar */}
                         <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
                           <div 
                             className="bg-amber-500 h-full rounded-full transition-all duration-500"
@@ -593,7 +825,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                         </span>
                       </div>
 
-                      {/* Completed Components Card */}
                       <div className="bg-slate-50 dark:bg-slate-850/40 border border-slate-200/60 dark:border-slate-800/60 p-4 rounded-2xl flex flex-col justify-between space-y-2">
                         <div>
                           <span className="block text-[9px] font-black uppercase tracking-widest text-slate-400">Componentes Concluídos</span>
@@ -607,7 +838,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                         </div>
                       </div>
 
-                      {/* Internship GPA Card */}
                       <div className="bg-slate-50 dark:bg-slate-850/40 border border-slate-200/60 dark:border-slate-800/60 p-4 rounded-2xl flex flex-col justify-between space-y-2">
                         <div>
                           <span className="block text-[9px] font-black uppercase tracking-widest text-slate-400">Média Geral do Estágio</span>
@@ -620,10 +850,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                           <span>Aproveitamento homologado</span>
                         </div>
                       </div>
-
                     </div>
 
-                    {/* Breakdown list */}
                     <div className="space-y-3">
                       <h4 className="font-extrabold text-slate-700 dark:text-white text-xs uppercase tracking-wide">
                         Detalhamento por Componente
@@ -658,7 +886,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                               </div>
 
                               <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
-                                {/* Completion Status Badge */}
                                 <span className={`px-2 py-0.5 rounded-md text-[9px] font-black tracking-wide shrink-0 ${
                                   isCompleted
                                     ? 'bg-emerald-100 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200/30'
@@ -667,7 +894,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                                   {isCompleted ? '✓ CONCLUÍDO' : '🟡 PENDENTE'}
                                 </span>
 
-                                {/* Grade display */}
                                 <div className="text-right shrink-0 min-w-[50px]">
                                   {isCompleted ? (
                                     <span className={`px-2 py-0.5 text-xs font-black rounded ${
@@ -689,7 +915,135 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
                         })}
                       </div>
                     </div>
-                  </>
+                  </div>
+                )}
+
+              </div>
+            );
+          })()}
+
+          {/* TAB 5: MEUS CERTIFICADOS */}
+          {activeSubTab === 'certificados' && (() => {
+            const allParticipants = getEventParticipants();
+            const eventsList = getEvents();
+
+            // Filter participants matching active student
+            const myCertRecords = allParticipants.filter(p => 
+              (p.studentId === activeStudent.id || 
+               p.enrollmentNumber === activeStudent.enrollment ||
+               p.studentName.toLowerCase().includes(activeStudent.name.toLowerCase())) &&
+              p.attended === true
+            );
+
+            return (
+              <div className="space-y-5 animate-fade-in">
+                <div className="bg-slate-50 dark:bg-slate-850 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-extrabold text-slate-800 dark:text-white text-base flex items-center gap-2">
+                      <Award className="h-5 w-5 text-amber-500" /> Meus Certificados
+                    </h3>
+                    <p className="text-xs text-slate-400">Certificados oficiais de minicursos, palestras e extensões acadêmicas com validação digital.</p>
+                  </div>
+                  <span className="px-3 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-black text-xs rounded-full self-start sm:self-auto">
+                    {myCertRecords.length} Certificado(s) Emitido(s)
+                  </span>
+                </div>
+
+                {myCertRecords.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center p-12 text-center bg-slate-50 dark:bg-slate-850 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 space-y-2">
+                    <Award className="h-10 w-10 text-slate-300 mb-1" />
+                    <h4 className="text-sm font-extrabold text-slate-700 dark:text-slate-300">Nenhum certificado disponível ainda</h4>
+                    <p className="text-xs text-slate-400 max-w-sm">
+                      Assim que você participar de minicursos, eventos ou concluir disciplinas de extensão, seus certificados homologados aparecerão nesta aba.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {myCertRecords.map(part => {
+                      const evt = eventsList.find(e => e.id === part.eventId);
+                      const title = evt ? evt.title : 'Minicurso Acadêmico';
+                      const instructor = evt ? evt.instructor : 'Corpo Docente';
+                      const hours = evt ? evt.workloadHours : 20;
+
+                      const handleViewCert = () => {
+                        if (part.certificateUrl) {
+                          // PDF file uploaded by admin
+                          const win = window.open(part.certificateUrl, '_blank');
+                          if (!win) {
+                            setSelectedCertModal({
+                              title: `Certificado Oficial - ${title}`,
+                              pdfUrl: part.certificateUrl,
+                              pdfName: part.certificateFileName || 'Certificado.pdf'
+                            });
+                          }
+                        } else {
+                          // Automatic HTML template certificate
+                          const templates = getOfficialTemplates();
+                          const certTpl = templates.find(t => t.docType === 'CERTIFICADO') || templates[0];
+                          const html = (certTpl?.contentHtml || `
+                            <div style="padding: 40px; text-align: center; border: 12px double #1e3a8a; font-family: 'Times New Roman', serif; background-color: #f8fafc; color: #0f172a;">
+                              <h1 style="font-size: 32px; font-weight: bold; color: #1e3a8a; text-transform: uppercase; margin-bottom: 20px;">CERTIFICADO DE CONCLUSÃO</h1>
+                              <p style="font-size: 16px; margin-bottom: 20px;">A Diretoria Acadêmica do Colégio e Faculdade Oswaldo Cruz certifica que</p>
+                              <h2 style="font-size: 26px; font-weight: bold; color: #1d4ed8; text-decoration: underline; margin-bottom: 20px;">{NOME_ALUNO}</h2>
+                              <p style="font-size: 15px; line-height: 1.8; margin-bottom: 30px;">
+                                Participou e concluiu com êxito o minicurso de extensão de <strong>{CURSO}</strong>, com carga horária total de <strong>{CARGA_HORARIA} horas complementares</strong>, sob instrução do(a) prof(a) <strong>{PROFESSOR}</strong>.
+                              </p>
+                              <div style="margin-top: 50px; display: flex; justify-content: space-around; align-items: flex-end;">
+                                <div style="text-align: center; border-top: 1px solid #334155; width: 220px; padding-top: 5px; font-size: 12px;">{PROFESSOR}<br/>Instrutor / Docente</div>
+                                <div style="text-align: center; border-top: 1px solid #334155; width: 220px; padding-top: 5px; font-size: 12px;">Direção Acadêmica<br/>Colégio Oswaldo Cruz</div>
+                              </div>
+                            </div>
+                          `)
+                            .replace(/{NOME_ALUNO}/g, activeStudent.name)
+                            .replace(/{CPF}/g, activeStudent.enrollment || '')
+                            .replace(/{CURSO}/g, title)
+                            .replace(/{CARGA_HORARIA}/g, hours.toString())
+                            .replace(/{DATA}/g, evt ? new Date(evt.date).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR'))
+                            .replace(/{PROFESSOR}/g, instructor);
+
+                          setSelectedCertModal({
+                            title: `Certificado Oficial - ${title}`,
+                            contentHtml: html
+                          });
+                        }
+                      };
+
+                      return (
+                        <div key={part.id} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4 flex flex-col justify-between">
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="px-2 py-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-extrabold text-[9px] rounded uppercase tracking-wider flex items-center gap-1">
+                                <Award className="h-3 w-3 text-amber-500" /> {hours} Horas
+                              </span>
+                              <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-200/50">
+                                ✓ HOMOLOGADO
+                              </span>
+                            </div>
+
+                            <h4 className="font-black text-sm text-slate-900 dark:text-white leading-snug">
+                              {title}
+                            </h4>
+
+                            <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1 font-medium">
+                              <div>Instrutor: <strong className="text-slate-800 dark:text-slate-200">{instructor}</strong></div>
+                              <div>Emitido em: {part.issueDate ? new Date(part.issueDate).toLocaleDateString('pt-BR') : '2026'}</div>
+                              <div className="font-mono text-[10px] text-slate-400">Código de Autenticidade: CERT-{part.id.substring(0, 8).toUpperCase()}</div>
+                            </div>
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleViewCert}
+                              className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-md shadow-blue-500/15 cursor-pointer flex items-center justify-center gap-1.5"
+                            >
+                              <FileCheck className="h-4 w-4" /> Visualizar / Baixar Certificado (PDF)
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             );
@@ -1181,6 +1535,136 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentId })
             </div>
           </motion.div>
         </div>
+      )}
+
+      {/* TOAST NOTIFICATION */}
+      {toastMsg && (
+        <div className={`fixed bottom-6 right-6 z-50 px-5 py-3.5 rounded-2xl shadow-2xl border flex items-center gap-3 text-xs font-black animate-fade-in ${
+          toastMsg.type === 'success'
+            ? 'bg-emerald-900 text-emerald-100 border-emerald-500/40'
+            : 'bg-rose-900 text-rose-100 border-rose-500/40'
+        }`}>
+          <span>{toastMsg.message}</span>
+          <button 
+            type="button" 
+            onClick={() => setToastMsg(null)}
+            className="p-1 hover:bg-white/10 rounded-lg transition-all"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* MODAL DE PENDÊNCIAS PARA INSCRIÇÃO DE ESTÁGIO */}
+      {pendencyModalVac && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-5"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                <ShieldAlert className="h-5 w-5 shrink-0" />
+                <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">
+                  Pendências para Liberação do Estágio
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendencyModalVac(null)}
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 transition-all cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs text-slate-600 dark:text-slate-300">
+                A vaga <strong className="text-blue-600 dark:text-blue-400">{pendencyModalVac.companyName || pendencyModalVac.stageName}</strong> exige homologação dos seguintes pré-requisitos antes da confirmação da matrícula:
+              </p>
+
+              <div className="space-y-2.5">
+                {pendencyList.map(item => (
+                  <div key={item.id} className="p-3.5 bg-rose-50/60 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 rounded-2xl space-y-1">
+                    <div className="flex items-center gap-2 text-xs font-black text-rose-700 dark:text-rose-400">
+                      <AlertCircle className="h-4 w-4 shrink-0 text-rose-500" />
+                      <span>{item.label}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-350 pl-6">
+                      {item.details}
+                    </p>
+
+                    {item.type === 'insurance' && (
+                      <div className="pt-2 pl-6">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            localStorage.setItem(`insurance_paid_${activeStudent.id}`, 'true');
+                            saveMiscPaymentCatalog({
+                              id: `misc_ins_${Date.now()}`,
+                              name: 'Taxa de Seguro de Estágio Obrigatório',
+                              category: 'ESTAGIO',
+                              defaultValue: 150,
+                              description: 'Seguro individual contra acidentes',
+                              active: true,
+                              blockedActions: []
+                            }, activeStudent.name);
+                            setToastMsg({ type: 'success', message: 'Taxa de seguro de R$ 150,00 quitada e ativada no financeiro!' });
+                            
+                            // Re-filter pendencies
+                            const rem = pendencyList.filter(p => p.type !== 'insurance');
+                            setPendencyList(rem);
+                            if (rem.length === 0 && pendencyModalVac) {
+                              const currentAllocated = pendencyModalVac.studentsAllocated || [];
+                              saveStageVacancy({
+                                ...pendencyModalVac,
+                                studentsAllocated: [
+                                  ...currentAllocated,
+                                  {
+                                    studentId: activeStudent.id,
+                                    studentName: activeStudent.name,
+                                    enrollmentNumber: activeStudent.enrollment || 'ALU-2026',
+                                    status: 'MATRICULADO'
+                                  }
+                                ]
+                              }, activeStudent.name);
+                              setToastMsg({ type: 'success', message: 'Inscrição efetuada com sucesso após quitação do seguro!' });
+                              setPendencyModalVac(null);
+                            }
+                          }}
+                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <DollarSign className="h-3.5 w-3.5" /> Pagar e Regularizar Taxa de Seguro (R$ 150,00)
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setPendencyModalVac(null)}
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* MODAL IMPRESSÃO/VISUALIZAÇÃO DE CERTIFICADO */}
+      {selectedCertModal && (
+        <MovimentacaoDocumentPrintModal
+          title={selectedCertModal.title}
+          subtitle={selectedCertModal.pdfName || 'Certificado Oficial Emitido'}
+          contentHtml={selectedCertModal.contentHtml}
+          onClose={() => setSelectedCertModal(null)}
+        />
       )}
     </div>
   );

@@ -9,6 +9,7 @@ import { UserRole } from '../types';
 import { LogIn, GraduationCap, Users, ShieldAlert, KeyRound, ArrowRight, BookOpen, Mail } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Logo } from './Logo';
+import { checkLoginRateLimit, registerFailedLoginAttempt, resetLoginAttempts, sanitizeInput } from '../utils/security';
 
 export const LoginScreen: React.FC = () => {
   const { login, adminPasswordResetDone, resetAdminPassword, unlockAdminReset } = useApp();
@@ -61,21 +62,44 @@ export const LoginScreen: React.FC = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    const sanitizedUser = sanitizeInput(username.trim());
+    const sanitizedSecret = sanitizeInput(cpfOrEnrollment.trim());
+
+    if (!sanitizedUser) {
+      setError('Por favor, informe seu usuário ou número de identificação.');
+      return;
+    }
+
+    // Check anti-brute force rate limit
+    const rateCheck = checkLoginRateLimit(sanitizedUser);
+    if (!rateCheck.allowed) {
+      setError(`Acesso temporariamente bloqueado por segurança devido a Múltiplas Tentativas Incorretas. Aguarde ${rateCheck.waitSeconds}s para tentar novamente.`);
+      return;
+    }
+
     setLoading(true);
 
     try {
       // Short artificial delay for smooth UX loading states
       await new Promise(resolve => setTimeout(resolve, 600));
-      const val = role === UserRole.ADMIN ? (cpfOrEnrollment || 'admin') : cpfOrEnrollment;
-      const success = await login(username, val, role);
+      const val = role === UserRole.ADMIN ? (sanitizedSecret || 'admin') : sanitizedSecret;
+      const success = await login(sanitizedUser, val, role);
       if (!success) {
-        setError(
-          role === UserRole.ADMIN 
-            ? 'Usuário ou senha incorretos para Administrador.' 
-            : role === UserRole.TEACHER 
-              ? 'Nome de usuário ou CPF incorretos.' 
-              : 'Matrícula ou senha padrão incorretos.'
-        );
+        const attemptRes = registerFailedLoginAttempt(sanitizedUser);
+        if (attemptRes.locked) {
+          setError(`Múltiplas tentativas incorretas detectadas! Sua conta foi temporariamente bloqueada por 5 minutos.`);
+        } else {
+          setError(
+            role === UserRole.ADMIN 
+              ? `Usuário ou senha incorretos para Administrador. (${attemptRes.attemptsLeft} tentativa(s) restante(s))` 
+              : role === UserRole.TEACHER 
+                ? `Nome de usuário ou CPF incorretos. (${attemptRes.attemptsLeft} tentativa(s) restante(s))` 
+                : `Matrícula ou senha padrão incorretos. (${attemptRes.attemptsLeft} tentativa(s) restante(s))`
+          );
+        }
+      } else {
+        resetLoginAttempts(sanitizedUser);
       }
     } catch (err: any) {
       setError(err.message || 'Erro de conexão com o servidor acadêmico.');

@@ -28,10 +28,12 @@ import { ExecutiveBIDashboard } from './ExecutiveBIDashboard';
 import { CRMModule } from './CRMModule';
 import { CadastrosModule } from './cadastros/CadastrosModule';
 import { FinanceiroModule } from './FinanceiroModule';
+import { MovimentacaoModule } from './movimentacao/MovimentacaoModule';
 import { FinanceiroPlaceholder } from './placeholders/FinanceiroPlaceholder';
 import { OrientacaoPlaceholder } from './placeholders/OrientacaoPlaceholder';
 import { PesquisaPlaceholder } from './placeholders/PesquisaPlaceholder';
-import { RelatoriosPlaceholder } from './placeholders/RelatoriosPlaceholder';
+import { PesquisaModule } from './pesquisa/PesquisaModule';
+import { RelatoriosModule } from './relatorios/RelatoriosModule';
 import { Briefcase } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -930,24 +932,31 @@ export const AdminDashboard: React.FC = () => {
         </motion.div>
       )}
 
-      {/* Tab: Orientação */}
+      {/* Tab: Movimentação (Gestão Acadêmica Integrada) */}
       {activeTab === 'orientacao' && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <OrientacaoPlaceholder onGoToCRM={() => setActiveTab('crm')} />
+          <MovimentacaoModule currentUser="Administrador Acadêmico" />
+        </motion.div>
+      )}
+
+      {/* Tab: Estágios (Atalho Direto para Aba de Estágios) */}
+      {activeTab === 'estagio' && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <MovimentacaoModule currentUser="Administrador Acadêmico" initialSubTab="estagios" />
         </motion.div>
       )}
 
       {/* Tab: Pesquisa */}
       {activeTab === 'pesquisa' && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <PesquisaPlaceholder onGoToCRM={() => setActiveTab('crm')} />
+          <PesquisaModule />
         </motion.div>
       )}
 
       {/* Tab: Relatórios */}
       {activeTab === 'relatorios' && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <RelatoriosPlaceholder onGoToCRM={() => setActiveTab('crm')} />
+          <RelatoriosModule />
         </motion.div>
       )}
 
