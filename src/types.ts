@@ -6,7 +6,8 @@
 export enum UserRole {
   ADMIN = 'ADMIN',
   TEACHER = 'TEACHER',
-  STUDENT = 'STUDENT'
+  STUDENT = 'STUDENT',
+  STAFF = 'STAFF'
 }
 
 export enum Shift {
@@ -26,6 +27,67 @@ export enum CalendarEventType {
   INFO = 'INFO'
 }
 
+export type PermissionModule = 
+  | 'dashboard'
+  | 'cadastros'
+  | 'matriculas'
+  | 'financeiro'
+  | 'diarios'
+  | 'frequencia'
+  | 'boletins'
+  | 'historico'
+  | 'certificados'
+  | 'relatorios'
+  | 'configuracoes'
+  | 'usuarios'
+  | 'cursos'
+  | 'disciplinas'
+  | 'turmas'
+  | 'importacoes'
+  | 'exportacoes'
+  | 'administracao'
+  | 'dependencias'
+  | 'funcionarios';
+
+export interface ModuleActions {
+  view: boolean;
+  create: boolean;
+  edit: boolean;
+  delete: boolean;
+  print: boolean;
+  export: boolean;
+}
+
+export type StaffPermissions = Record<string, ModuleActions>;
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  cpf: string;
+  phone: string;
+  email: string;
+  position: string; // Cargo
+  registrationDate: string; // Data de cadastro
+  active: boolean; // Status (Ativo/Inativo)
+  username: string; // Número de usuário (login auto-gerado)
+  password?: string; // Senha inicial/atual
+  permissions: StaffPermissions;
+}
+
+export interface DependencyEnrollment {
+  id: string;
+  studentId: string;
+  studentName: string;
+  enrollment: string;
+  courseId: string;
+  subjectId: string;
+  semester: number;
+  schedule: string; // Horário da dependência
+  createdClassId: string; // ID do Diário gerado automaticamente
+  createdAt: string;
+  status: 'ATIVO' | 'CONCLUÍDO' | 'CANCELADO';
+}
+
 export interface User {
   id: string;
   name: string;
@@ -33,17 +95,24 @@ export interface User {
   email: string;
   role: UserRole;
   password?: string;
-  cpf?: string; // for teachers
+  cpf?: string; // for teachers/staff
+  phone?: string;
+  position?: string;
   enrollment?: string; // matricula for students/teachers
   active: boolean;
   classId?: string; // student's active class section
   assignedJournals?: { classId: string, subjectId: string }[];
+  staffPermissions?: StaffPermissions;
 }
 
 export interface Course {
   id: string;
   name: string;
   description: string;
+  totalWorkload?: number;
+  shifts?: Shift[];
+  status?: 'ATIVO' | 'INATIVO';
+  active?: boolean;
 }
 
 export interface ClassSection {
@@ -59,6 +128,9 @@ export interface ClassSection {
   closedS2: boolean;
   closedDefinitive: boolean;
   isImported?: boolean;
+  isDependency?: boolean;
+  dependencySubjectId?: string;
+  scheduleText?: string;
 }
 
 export interface Subject {

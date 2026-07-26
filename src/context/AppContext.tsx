@@ -8,7 +8,7 @@ import {
   User, UserRole, Course, ClassSection, Subject, GradeRecord, 
   AttendanceSession, ConceptRange, AcademicCalendarEvent, Message, 
   AcademicNotification, Shift, SystemStats, StudentDocument, DeclarationConfigs,
-  InternshipRecord
+  InternshipRecord, StaffMember, StaffPermissions, DependencyEnrollment
 } from '../types';
 import { 
   initialCourses, initialConceptRanges, initialUsers, 
@@ -28,6 +28,7 @@ import {
   createUserWithEmailAndPassword,
   onAuthStateChanged
 } from 'firebase/auth';
+import { getDefaultStaffPermissions } from '../utils/permissionUtils';
 
 function safeJsonParse<T>(savedValue: string | null, fallback: T): T {
   if (!savedValue) return fallback;
@@ -128,7 +129,7 @@ interface AppContextType {
   setActiveSubjectId: (id: string | null) => void;
 
   // DB Mutators
-  addCourse: (course: Course) => void;
+  addCourse: (course: Omit<Course, 'id'> & { id?: string }) => Course;
   addClass: (cls: ClassSection) => void;
   updateClass: (id: string, updates: Partial<ClassSection>) => void;
   deleteClass: (id: string) => void;
@@ -199,6 +200,16 @@ interface AppContextType {
   fetchStorageBackups: () => Promise<void>;
   triggerStorageBackup: () => Promise<string | null>;
   deleteStorageBackup: (filename: string) => Promise<boolean>;
+
+  staffMembers: StaffMember[];
+  dependencies: DependencyEnrollment[];
+  updateCourse: (course: Course) => void;
+  deleteCourse: (id: string) => void;
+  addStaffMember: (staffData: Omit<StaffMember, 'id' | 'username' | 'registrationDate'> & { permissions?: StaffPermissions }) => { staff: StaffMember; generatedUsername: string; initialPassword: string };
+  updateStaffMember: (staff: StaffMember) => void;
+  deleteStaffMember: (id: string) => void;
+  updateStaffPermissions: (staffId: string, permissions: StaffPermissions) => void;
+  createDependencyEnrollment: (data: { studentId: string; courseId: string; subjectId: string; semester: number; schedule: string }) => Promise<{ dependency: DependencyEnrollment; classSection: ClassSection }>;
 
   declarationConfigs: DeclarationConfigs;
   studentDocuments: StudentDocument[];
@@ -690,6 +701,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return val || [];
   });
 
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>(() => {
+    const val = safeJsonParse(safeLocalStorage.getItem('oc_staff_members'), []);
+    return val || [];
+  });
+
+  const [dependencies, setDependencies] = useState<DependencyEnrollment[]>(() => {
+    const val = safeJsonParse(safeLocalStorage.getItem('oc_dependencies'), []);
+    return val || [];
+  });
+
   useEffect(() => {
     safeLocalStorage.setItem('oc_auto_lock_enabled', autoLockEnabled ? 'true' : 'false');
   }, [autoLockEnabled]);
@@ -710,11 +731,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     safeLocalStorage.setItem('oc_internships', JSON.stringify(internships));
   }, [internships]);
 
+  useEffect(() => {
+    safeLocalStorage.setItem('oc_staff_members', JSON.stringify(staffMembers));
+  }, [staffMembers]);
+
+  useEffect(() => {
+    safeLocalStorage.setItem('oc_dependencies', JSON.stringify(dependencies));
+  }, [dependencies]);
+
   const latestStateRef = React.useRef({
     users, courses, classes, subjects, grades, attendance, directAbsences,
     conceptRanges, calendarEvents, messages, notifications,
     currentPeriod, periods, simulatedDate, autoLockEnabled,
-    declarationConfigs, studentDocuments, internships,
+    declarationConfigs, studentDocuments, internships, staffMembers, dependencies,
     adminPasswordResetDone, securityLogs
   });
 
@@ -723,10 +752,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       users, courses, classes, subjects, grades, attendance, directAbsences,
       conceptRanges, calendarEvents, messages, notifications,
       currentPeriod, periods, simulatedDate, autoLockEnabled,
-      declarationConfigs, studentDocuments, internships,
+      declarationConfigs, studentDocuments, internships, staffMembers, dependencies,
       adminPasswordResetDone, securityLogs
     };
-  }, [users, courses, classes, subjects, grades, attendance, directAbsences, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships, adminPasswordResetDone, securityLogs]);
+  }, [users, courses, classes, subjects, grades, attendance, directAbsences, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships, staffMembers, dependencies, adminPasswordResetDone, securityLogs]);
 
   const lastReceivedPayloadRef = React.useRef<string>('');
   const lastLocalWriteTimeRef = React.useRef<string | null>(lastLocalWriteTime);
@@ -850,6 +879,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (state.declarationConfigs) { setDeclarationConfigs(state.declarationConfigs); safeLocalStorage.setItem('oc_declaration_configs', JSON.stringify(state.declarationConfigs)); }
             if (state.studentDocuments) { setStudentDocuments(state.studentDocuments); safeLocalStorage.setItem('oc_student_documents', JSON.stringify(state.studentDocuments)); }
             if (state.internships) { setInternships(state.internships); safeLocalStorage.setItem('oc_internships', JSON.stringify(state.internships)); }
+            if (state.staffMembers) { setStaffMembers(state.staffMembers); safeLocalStorage.setItem('oc_staff_members', JSON.stringify(state.staffMembers)); }
+            if (state.dependencies) { setDependencies(state.dependencies); safeLocalStorage.setItem('oc_dependencies', JSON.stringify(state.dependencies)); }
             if (state.adminPasswordResetDone !== undefined) {
               setAdminPasswordResetDone(state.adminPasswordResetDone);
               safeLocalStorage.setItem('oc_admin_reset_done', state.adminPasswordResetDone ? 'true' : 'false');
@@ -1551,13 +1582,156 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Mutators
-  const addCourse = (course: Course) => {
-    const uppercaseCourse = {
-      ...course,
-      name: course.name.toUpperCase(),
-      description: course.description.toUpperCase()
+  const addCourse = (courseData: Omit<Course, 'id'> & { id?: string }): Course => {
+    const id = courseData.id ? courseData.id.toUpperCase() : `CURSO_${Date.now()}`;
+    const newCourse: Course = {
+      id,
+      name: courseData.name.toUpperCase(),
+      description: (courseData.description || `Curso ${courseData.name}`).toUpperCase(),
+      totalWorkload: courseData.totalWorkload || 1200,
+      shifts: courseData.shifts || [Shift.MATUTINO, Shift.VESPERTINO, Shift.NOTURNO],
+      status: courseData.status || 'ATIVO',
+      active: courseData.status !== 'INATIVO' && courseData.active !== false
     };
-    setCourses(prev => [...prev, uppercaseCourse]);
+
+    setCourses(prev => {
+      const filtered = prev.filter(c => c.id !== id);
+      return [...filtered, newCourse];
+    });
+    return newCourse;
+  };
+
+  const updateCourse = (course: Course) => {
+    setCourses(prev => prev.map(c => c.id === course.id ? course : c));
+  };
+
+  const deleteCourse = (id: string) => {
+    setCourses(prev => prev.filter(c => c.id !== id));
+  };
+
+  const addStaffMember = (staffData: Omit<StaffMember, 'id' | 'username' | 'registrationDate'> & { permissions?: StaffPermissions }) => {
+    const id = `staff_${Date.now()}`;
+    const generatedUsername = `func_${Math.floor(1000 + Math.random() * 9000)}`;
+    const initialPassword = `Func@2026`;
+    const registrationDate = new Date().toISOString().split('T')[0];
+
+    const staff: StaffMember = {
+      id,
+      username: generatedUsername,
+      name: staffData.name,
+      cpf: staffData.cpf,
+      phone: staffData.phone,
+      email: staffData.email,
+      position: staffData.position || 'Secretário Acadêmico',
+      registrationDate,
+      active: staffData.active !== false,
+      permissions: staffData.permissions || getDefaultStaffPermissions(true)
+    };
+
+    setStaffMembers(prev => [...prev, staff]);
+
+    // Also register as system user for authentication
+    const newUser: User = {
+      id: generatedUsername,
+      username: generatedUsername,
+      name: staffData.name,
+      cpf: staffData.cpf,
+      email: staffData.email,
+      role: UserRole.ADMIN, // Staff member acts as system operator
+      active: staffData.active !== false,
+      password: initialPassword
+    };
+
+    setUsers(prev => {
+      const exists = prev.some(u => u.username === generatedUsername);
+      return exists ? prev : [...prev, newUser];
+    });
+
+    return { staff, generatedUsername, initialPassword };
+  };
+
+  const updateStaffMember = (staff: StaffMember) => {
+    setStaffMembers(prev => prev.map(s => s.id === staff.id ? staff : s));
+  };
+
+  const deleteStaffMember = (id: string) => {
+    setStaffMembers(prev => prev.filter(s => s.id !== id));
+  };
+
+  const updateStaffPermissions = (staffId: string, permissions: StaffPermissions) => {
+    setStaffMembers(prev => prev.map(s => s.id === staffId ? { ...s, permissions } : s));
+  };
+
+  const createDependencyEnrollment = async (data: {
+    studentId: string;
+    courseId: string;
+    subjectId: string;
+    semester: number;
+    schedule: string;
+  }): Promise<{ dependency: DependencyEnrollment; classSection: ClassSection }> => {
+    const student = users.find(u => u.id === data.studentId);
+    if (!student) throw new Error('Aluno não encontrado.');
+
+    const subject = subjects.find(s => s.id === data.subjectId);
+    if (!subject) throw new Error('Disciplina não encontrada.');
+
+    const dependencyId = `dep_${Date.now()}`;
+    const createdClassId = `class_dep_${Date.now()}`;
+    const createdClassName = `DEP-${subject.name.toUpperCase()} (${data.schedule.slice(0, 15)})`;
+
+    // 1. Create ClassSection / Diário for dependency
+    const newClassSection: ClassSection = {
+      id: createdClassId,
+      name: createdClassName,
+      code: `DEP-${subject.id.toUpperCase()}`,
+      courseId: data.courseId,
+      shift: Shift.SABADO,
+      module: data.semester,
+      year: new Date().getFullYear(),
+      semester: 1,
+      isDependency: true,
+      dependencySubjectId: data.subjectId,
+      scheduleText: data.schedule,
+      closedS1: false,
+      closedS2: false,
+      closedDefinitive: false
+    };
+
+    setClasses(prev => [...prev, newClassSection]);
+
+    // 2. Bind student to this class section and create GradeRecord
+    const newGrade: GradeRecord = {
+      id: `g_dep_${Date.now()}_${data.subjectId}_${student.id}`,
+      classId: createdClassId,
+      subjectId: data.subjectId,
+      studentId: student.id,
+      av1: null, av2: null, av3: null, recS1: null, s1: 0,
+      av4: null, av5: null, afc: null, recS2: null, s2: 0,
+      extra: null, conselho: null, pf: 0,
+      concept: 'D',
+      result: 'Pendente'
+    };
+
+    setGrades(prev => [...prev, newGrade]);
+
+    // 3. Create DependencyEnrollment record
+    const newDependency: DependencyEnrollment = {
+      id: dependencyId,
+      studentId: student.id,
+      studentName: student.name,
+      enrollment: student.enrollment || student.username,
+      courseId: data.courseId,
+      subjectId: data.subjectId,
+      semester: data.semester,
+      schedule: data.schedule,
+      createdAt: new Date().toISOString(),
+      status: 'ATIVO',
+      createdClassId
+    };
+
+    setDependencies(prev => [...prev, newDependency]);
+
+    return { dependency: newDependency, classSection: newClassSection };
   };
 
   const addClass = (cls: ClassSection) => {
@@ -3756,7 +3930,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, debounceDelay); // Use 0ms if unsaved changes have been pending for >=4000ms, else 1000ms
 
     return () => clearTimeout(delayDebounceFn);
-  }, [isLoading, hasReceivedInitialCloudSync, users, courses, classes, subjects, grades, attendance, directAbsences, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships, adminPasswordResetDone]);
+  }, [isLoading, hasReceivedInitialCloudSync, users, courses, classes, subjects, grades, attendance, directAbsences, conceptRanges, calendarEvents, messages, notifications, currentPeriod, periods, simulatedDate, autoLockEnabled, declarationConfigs, studentDocuments, internships, staffMembers, dependencies, adminPasswordResetDone]);
 
   // Recovery mechanism for quota_exceeded status (resets status to idle after 5 minutes to retry)
   useEffect(() => {
@@ -3784,7 +3958,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       wipeAllData, loadDemoData,
       login, logout, updatePassword, recoverPassword,
       setActiveClassId, setActiveSubjectId,
-      addCourse, addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, updateConceptRanges,
+      addCourse, updateCourse, deleteCourse,
+      addClass, updateClass, deleteClass, addSubject, updateSubject, deleteSubject, addUser, updateUser, deleteUser, unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum, updateGrade, updateConceptRanges,
+      staffMembers, addStaffMember, updateStaffMember, deleteStaffMember, updateStaffPermissions,
+      dependencies, createDependencyEnrollment,
       saveAttendanceSession, addAttendanceSession,
       directAbsences, updateStudentAbsences,
       toggleJournalStatus, sendMessage, addNotification, clearNotifications,

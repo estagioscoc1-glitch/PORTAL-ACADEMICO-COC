@@ -21,6 +21,9 @@ import { GradeJournal } from './GradeJournal';
 import { AttendanceJournal } from './AttendanceJournal';
 import { AdminInternships } from './AdminInternships';
 import { SubjectManager } from './SubjectManager';
+import { CourseManager } from './CourseManager';
+import { StaffManager } from './StaffManager';
+import { DependencyManager } from './DependencyManager';
 import { Briefcase } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -95,6 +98,7 @@ export const AdminDashboard: React.FC = () => {
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio' | 'historico_completo' | 'detect_duplicates' | 'detect_duplicates_subjects' | 'gerenciar_disciplinas'>('visu');
+  const [regSubTab, setRegSubTab] = useState<'cursos' | 'funcionarios' | 'dependencias' | 'turmas'>('cursos');
   const [searchQuery, setSearchQuery] = useState('');
   const [printDoc, setPrintDoc] = useState<any | null>(null);
 
@@ -1319,8 +1323,67 @@ export const AdminDashboard: React.FC = () => {
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="grid md:grid-cols-12 gap-6"
+          className="space-y-6"
         >
+          {/* Sub Navigation Bar for Cadastros Acadêmicos */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-2 rounded-2xl flex flex-wrap items-center gap-2 shadow-sm">
+            <button
+              type="button"
+              id="subtab-cadastrar-novo-curso"
+              onClick={() => setRegSubTab('cursos')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                regSubTab === 'cursos'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <BookOpen className="h-4 w-4" /> Cadastrar Novo Curso
+            </button>
+            <button
+              type="button"
+              id="subtab-funcionarios-sistema"
+              onClick={() => setRegSubTab('funcionarios')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                regSubTab === 'funcionarios'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Users className="h-4 w-4" /> Funcionários do Sistema
+            </button>
+            <button
+              type="button"
+              id="subtab-dependencias"
+              onClick={() => setRegSubTab('dependencias')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                regSubTab === 'dependencias'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Sparkles className="h-4 w-4" /> Dependências
+            </button>
+            <button
+              type="button"
+              id="subtab-turmas-professores"
+              onClick={() => setRegSubTab('turmas')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                regSubTab === 'turmas'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <FolderPlus className="h-4 w-4" /> Turmas, Professores & Alunos
+            </button>
+          </div>
+
+          {/* SubTab Views */}
+          {regSubTab === 'cursos' && <CourseManager />}
+          {regSubTab === 'funcionarios' && <StaffManager />}
+          {regSubTab === 'dependencias' && <DependencyManager />}
+
+          {regSubTab === 'turmas' && (
+            <div className="grid md:grid-cols-12 gap-6">
           {/* Create Class Form */}
           <div className="md:col-span-6 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-2xl shadow-sm">
             <div className="flex items-center gap-1.5 mb-4 text-slate-800 dark:text-white">
@@ -2744,8 +2807,10 @@ export const AdminDashboard: React.FC = () => {
               </table>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
+    </motion.div>
+  )}
 
       {/* Tab: IMPORTADOR DE PLANILHAS */}
       {activeTab === 'imp' && (

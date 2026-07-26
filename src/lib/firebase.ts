@@ -95,6 +95,8 @@ export interface SystemStatePayload {
   declarationConfigs?: any;
   studentDocuments?: any[];
   internships?: any[];
+  staffMembers?: any[];
+  dependencies?: any[];
   lastBackupTime?: string;
   version?: string;
   adminPasswordResetDone?: boolean;
