@@ -99,6 +99,7 @@ export interface User {
   phone?: string;
   position?: string;
   enrollment?: string; // matricula for students/teachers
+  dossierNumber?: string; // Número do Dossiê do Aluno
   active: boolean;
   classId?: string; // student's active class section
   courseId?: string;

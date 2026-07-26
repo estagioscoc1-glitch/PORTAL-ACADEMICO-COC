@@ -25,6 +25,13 @@ import { CourseManager } from './CourseManager';
 import { StaffManager } from './StaffManager';
 import { DependencyManager } from './DependencyManager';
 import { ExecutiveBIDashboard } from './ExecutiveBIDashboard';
+import { CRMModule } from './CRMModule';
+import { CadastrosModule } from './cadastros/CadastrosModule';
+import { FinanceiroModule } from './FinanceiroModule';
+import { FinanceiroPlaceholder } from './placeholders/FinanceiroPlaceholder';
+import { OrientacaoPlaceholder } from './placeholders/OrientacaoPlaceholder';
+import { PesquisaPlaceholder } from './placeholders/PesquisaPlaceholder';
+import { RelatoriosPlaceholder } from './placeholders/RelatoriosPlaceholder';
 import { Briefcase } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -87,7 +94,7 @@ export const AdminDashboard: React.FC = () => {
     triggerLocalBackup, triggerCloudBackup, restoreFromBackup, restoreFromCloud,
     failedAttemptsMap, resetFailedAttempts,
     currentPeriod, periods, setCurrentPeriod, addPeriod,
-    wipeAllData, loadDemoData,
+    wipeAllData, wipeAllStudents, loadDemoData,
     autoLockEnabled, setAutoLockEnabled, simulatedDate, setSimulatedDate, updateCalendarEventDate,
     activeClassId, activeSubjectId, setActiveClassId, setActiveSubjectId,
     backupSchedule, updateBackupSchedule,
@@ -98,7 +105,7 @@ export const AdminDashboard: React.FC = () => {
     unifyDuplicateStudents, unifyDuplicateSubjects, syncSubjectsWithOfficialCurriculum
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio' | 'historico_completo' | 'detect_duplicates' | 'detect_duplicates_subjects' | 'gerenciar_disciplinas'>('visu');
+  const [activeTab, setActiveTab] = useState<'crm' | 'cadastros' | 'financeiro' | 'orientacao' | 'pesquisa' | 'relatorios' | 'visu' | 'reg' | 'imp' | 'msg' | 'sec' | 'boletins' | 'estagio' | 'historico_completo' | 'detect_duplicates' | 'detect_duplicates_subjects' | 'gerenciar_disciplinas'>('crm');
   const [regSubTab, setRegSubTab] = useState<'cursos' | 'funcionarios' | 'dependencias' | 'turmas'>('cursos');
   const [searchQuery, setSearchQuery] = useState('');
   const [printDoc, setPrintDoc] = useState<any | null>(null);
@@ -730,8 +737,78 @@ export const AdminDashboard: React.FC = () => {
 
       </div>
 
-      {/* Tab Selectors */}
+      {/* Tab Selectors - Nova Estrutura Principal */}
       <div className="flex overflow-x-auto whitespace-nowrap scrollbar-none border-b border-slate-200 dark:border-slate-800 gap-2 select-none pb-0.5">
+        <button
+          type="button"
+          onClick={() => setActiveTab('crm')}
+          className={`pb-3 text-xs sm:text-sm font-black px-4 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
+            activeTab === 'crm' 
+              ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 font-black' 
+              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Sparkles className="h-4 w-4 text-blue-600 animate-pulse" />
+          <span>CRM</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('cadastros')}
+          className={`pb-3 text-xs sm:text-sm font-black px-4 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
+            activeTab === 'cadastros' 
+              ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 font-black' 
+              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <span>Cadastros</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('financeiro')}
+          className={`pb-3 text-xs sm:text-sm font-black px-4 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
+            activeTab === 'financeiro' 
+              ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 font-black' 
+              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <span>Financeiro</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('orientacao')}
+          className={`pb-3 text-xs sm:text-sm font-black px-4 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
+            activeTab === 'orientacao' 
+              ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 font-black' 
+              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <span>Movimentação</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('pesquisa')}
+          className={`pb-3 text-xs sm:text-sm font-black px-4 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
+            activeTab === 'pesquisa' 
+              ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 font-black' 
+              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <span>Pesquisa</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('relatorios')}
+          className={`pb-3 text-xs sm:text-sm font-black px-4 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
+            activeTab === 'relatorios' 
+              ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 font-black' 
+              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <span>Relatórios</span>
+        </button>
+
+        <span className="h-6 w-px bg-slate-200 dark:bg-slate-800 my-auto mx-1"></span>
+
         <button
           type="button"
           onClick={() => setActiveTab('visu')}
@@ -741,7 +818,7 @@ export const AdminDashboard: React.FC = () => {
               : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
           }`}
         >
-          Painel de Indicadores
+          Dashboard
         </button>
         <button
           type="button"
@@ -763,7 +840,7 @@ export const AdminDashboard: React.FC = () => {
               : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
           }`}
         >
-          Importar Planilhas (Excel)
+          Importar Planilhas
         </button>
         <button
           type="button"
@@ -810,7 +887,7 @@ export const AdminDashboard: React.FC = () => {
           }`}
         >
           <History className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-          <span>Histórico Completo do Aluno</span>
+          <span>Histórico do Aluno</span>
         </button>
         <button
           type="button"
@@ -822,45 +899,57 @@ export const AdminDashboard: React.FC = () => {
           }`}
         >
           <Briefcase className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-          <span>Lançar Estágios</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('detect_duplicates')}
-          className={`pb-3 text-xs sm:text-sm font-extrabold px-3 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
-            activeTab === 'detect_duplicates' 
-              ? 'text-blue-700 dark:text-blue-400 border-b-2 border-blue-700 dark:border-blue-400' 
-              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-          }`}
-        >
-          <Users className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-          <span>Detectar Alunos Duplicados</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('detect_duplicates_subjects')}
-          className={`pb-3 text-xs sm:text-sm font-extrabold px-3 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
-            activeTab === 'detect_duplicates_subjects' 
-              ? 'text-blue-700 dark:text-blue-400 border-b-2 border-blue-700 dark:border-blue-400' 
-              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-          }`}
-        >
-          <BookOpen className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-          <span>Disciplinas Duplicadas</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('gerenciar_disciplinas')}
-          className={`pb-3 text-xs sm:text-sm font-extrabold px-3 relative transition-all flex items-center gap-1.5 flex-shrink-0 ${
-            activeTab === 'gerenciar_disciplinas' 
-              ? 'text-blue-700 dark:text-blue-400 border-b-2 border-blue-700 dark:border-blue-400' 
-              : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
-          }`}
-        >
-          <Settings className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-          <span>Gerenciador de Disciplinas</span>
+          <span>Estágios</span>
         </button>
       </div>
+
+      {/* Tab: CRM */}
+      {activeTab === 'crm' && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <CRMModule />
+        </motion.div>
+      )}
+
+      {/* Tab: Cadastros */}
+      {activeTab === 'cadastros' && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <CadastrosModule />
+        </motion.div>
+      )}
+
+      {/* Tab: Financeiro */}
+      {activeTab === 'financeiro' && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <FinanceiroModule 
+            currentUser="Administração Financeira"
+            allStudentUsers={allStudentUsers}
+            courses={courses}
+            classes={classes}
+            isAdmin={true}
+          />
+        </motion.div>
+      )}
+
+      {/* Tab: Orientação */}
+      {activeTab === 'orientacao' && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <OrientacaoPlaceholder onGoToCRM={() => setActiveTab('crm')} />
+        </motion.div>
+      )}
+
+      {/* Tab: Pesquisa */}
+      {activeTab === 'pesquisa' && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <PesquisaPlaceholder onGoToCRM={() => setActiveTab('crm')} />
+        </motion.div>
+      )}
+
+      {/* Tab: Relatórios */}
+      {activeTab === 'relatorios' && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <RelatoriosPlaceholder onGoToCRM={() => setActiveTab('crm')} />
+        </motion.div>
+      )}
 
       {/* Tab: VISUALIZADOR DE INDICADORES (Dashboard Executivo BI) */}
       {activeTab === 'visu' && (
@@ -3075,6 +3164,31 @@ export const AdminDashboard: React.FC = () => {
             {/* Column left: Import/Export panel */}
             <div className="lg:col-span-5 space-y-6">
               
+              {/* Box 0: Zerar Alunos do Sistema */}
+              <div className="bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900/40 p-6 rounded-3xl shadow-sm space-y-4">
+                <div className="flex items-center gap-2 text-rose-700 dark:text-rose-400 select-none">
+                  <Trash2 className="h-5 w-5 text-rose-600" />
+                  <h4 className="font-bold text-sm">Zerar Alunos do Sistema</h4>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Exclui todos os alunos cadastrados e remove em cascata todas as suas notas, chamadas/frequências, faltas diretas e documentos associados.
+                </p>
+
+                <button
+                  type="button"
+                  id="wipe-all-students-btn"
+                  onClick={() => {
+                    if (window.confirm('TEM CERTEZA? Esta ação zerará permanentemente TODOS os alunos e seus dados acadêmicos!')) {
+                      wipeAllStudents();
+                      alert('Todos os alunos e seus registros foram zerados do sistema com sucesso.');
+                    }
+                  }}
+                  className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="h-4 w-4" /> Zerar Todos os Alunos
+                </button>
+              </div>
+
               {/* Box 1: Local backup toolbelt */}
               <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-6 rounded-3xl shadow-sm space-y-4">
                 <div className="flex items-center gap-2 text-slate-800 dark:text-white select-none">

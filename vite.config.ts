@@ -17,31 +17,7 @@ export default defineConfig(() => {
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
     build: {
-      chunkSizeWarningLimit: 1000,
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (id.includes('node_modules')) {
-              if (id.includes('xlsx')) {
-                return 'vendor-xlsx';
-              }
-              if (id.includes('lucide-react')) {
-                return 'vendor-lucide';
-              }
-              if (id.includes('motion')) {
-                return 'vendor-motion';
-              }
-              if (id.includes('react') || id.includes('react-dom')) {
-                return 'vendor-react';
-              }
-              if (id.includes('firebase')) {
-                return 'vendor-firebase';
-              }
-              return 'vendor-others';
-            }
-          }
-        }
-      }
+      chunkSizeWarningLimit: 2500
     },
   };
 });

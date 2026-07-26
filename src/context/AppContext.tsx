@@ -116,6 +116,7 @@ interface AppContextType {
   
   // Admin DB controls
   wipeAllData: () => void;
+  wipeAllStudents: () => void;
   loadDemoData: () => void;
   
   // Auth
@@ -2486,6 +2487,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addSecurityLog('BANCO_LIMPO', 'Exclusão completa de alunos, professores, diários, matrículas e lançamentos efetuada com sucesso.', 'high');
   };
 
+  const wipeAllStudents = () => {
+    const studentUsers = users.filter(u => u.role === UserRole.STUDENT);
+    const studentIdsSet = new Set(studentUsers.map(u => u.id));
+
+    // Keep only non-student users (Admin, Teachers, Staff)
+    const remainingUsers = users.filter(u => u.role !== UserRole.STUDENT);
+    setUsers(remainingUsers);
+    safeLocalStorage.setItem('oc_users', JSON.stringify(remainingUsers));
+
+    // Remove student grades
+    const remainingGrades = grades.filter(g => !studentIdsSet.has(g.studentId));
+    setGrades(remainingGrades);
+    safeLocalStorage.setItem('oc_grades', JSON.stringify(remainingGrades));
+
+    // Remove student attendance records
+    const remainingAttendance = attendance.map(session => {
+      if (!session.records) return session;
+      const newRecords = { ...session.records };
+      let changed = false;
+      studentUsers.forEach(u => {
+        if (u.id in newRecords) {
+          delete newRecords[u.id];
+          changed = true;
+        }
+      });
+      return changed ? { ...session, records: newRecords } : session;
+    });
+    setAttendance(remainingAttendance);
+    safeLocalStorage.setItem('oc_attendance', JSON.stringify(remainingAttendance));
+
+    // Remove directAbsences
+    const remainingDirectAbsences = { ...directAbsences };
+    Object.keys(remainingDirectAbsences).forEach(key => {
+      if (Array.from(studentIdsSet).some(id => key.endsWith(`_${id}`))) {
+        delete remainingDirectAbsences[key];
+      }
+    });
+    setDirectAbsences(remainingDirectAbsences);
+    safeLocalStorage.setItem('oc_direct_absences', JSON.stringify(remainingDirectAbsences));
+
+    // Remove student documents, internships, and dependencies
+    const remainingDocs = studentDocuments.filter(d => !studentIdsSet.has(d.studentId));
+    setStudentDocuments(remainingDocs);
+    safeLocalStorage.setItem('oc_student_documents', JSON.stringify(remainingDocs));
+
+    const remainingInternships = internships.filter(i => !studentIdsSet.has(i.studentId));
+    setInternships(remainingInternships);
+    safeLocalStorage.setItem('oc_internships', JSON.stringify(remainingInternships));
+
+    const remainingDependencies = dependencies.filter(d => !studentIdsSet.has(d.studentId));
+    setDependencies(remainingDependencies);
+    safeLocalStorage.setItem('oc_dependencies', JSON.stringify(remainingDependencies));
+
+    addSecurityLog('ALUNOS_ZERADOS', `Remoção completa efetuada: Todos os alunos (${studentUsers.length}) e seus registros acadêmicos foram zerados do sistema.`, 'high');
+  };
+
   const loadDemoData = () => {
     const demo = getDemoDataToLoad();
     
@@ -3955,7 +4012,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateCalendarEventDate,
       isClassS1Locked, isClassS2Locked, isClassDefinitiveLocked,
       currentPeriod, periods, setCurrentPeriod, addPeriod,
-      wipeAllData, loadDemoData,
+      wipeAllData, wipeAllStudents, loadDemoData,
       login, logout, updatePassword, recoverPassword,
       setActiveClassId, setActiveSubjectId,
       addCourse, updateCourse, deleteCourse,
